@@ -1,0 +1,14 @@
+{
+  "name": "@cloudwave/webuddy-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Collects local coding-agent sessions into attributable records for the Webuddy data asset.",
+  "bin": {
+    "webuddy-agent": "./index.mjs"
+  },
+  "type": "module",
+  "dependencies": {},
+  "engines": {
+    "node": ">=20"
+  }
+}

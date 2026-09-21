@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "pluginKey": "cloudwave.webuddy-navigation-shortcuts",
+      "path": "cloudwave.webuddy-navigation-shortcuts",
+      "contentHash": "c1e423b4e052fc640ff1ebac5e596860e48c61bf69f3db573e989b2787b81068"
+    }
+  ]
+}

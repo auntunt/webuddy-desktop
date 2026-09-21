@@ -1,0 +1,21 @@
+{
+  "manifestVersion": 1,
+  "id": "webuddy-multipass-recipes",
+  "publisher": "cloudwave",
+  "name": "Multipass VM Recipes",
+  "version": "1.0.0",
+  "description": "A reviewed starter lifecycle for disposable Multipass workspaces.",
+  "repository": "https://github.com/cloudwave/webuddy-multipass-recipes",
+  "engines": {
+    "orca": ">=1.4.0"
+  },
+  "pluginApi": 1,
+  "contributes": {
+    "vmRecipes": [
+      {
+        "path": "recipes/ubuntu-lts.json"
+      }
+    ]
+  },
+  "capabilities": []
+}

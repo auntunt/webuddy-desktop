@@ -1,0 +1,14 @@
+{
+  "name": "@cloudwave/webuddy-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Receives collected agent sessions, serves the dashboard, and keeps rollups current.",
+  "bin": {
+    "webuddy-server": "./server.mjs"
+  },
+  "type": "module",
+  "dependencies": {},
+  "engines": {
+    "node": ">=22.5"
+  }
+}

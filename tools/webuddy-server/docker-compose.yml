@@ -1,0 +1,27 @@
+# 和这台机器上其他服务同一套规范：容器绑回环端口，nginx 负责 TLS 与对外。
+# 账号密码放同目录 .env（chmod 600），不进仓库：
+#   WEBUDDY_ADMIN_USER=admin
+#   WEBUDDY_ADMIN_PASSWORD=<强密码>
+#   WEBUDDY_ADMIN_TOKEN=<强随机串，用于装机
+#
+#   docker compose up -d --build
+#
+# 数据落在 ./data（挂载进容器 /data），换镜像不丢数据。
+services:
+  webuddy-log:
+    build: .
+    image: webuddy-server:latest
+    container_name: webuddy-log
+    restart: unless-stopped
+    env_file:
+      - /home/Liyibin/services/webuddy-server/.env
+    environment:
+      WEBUDDY_PORT: "8790"
+      WEBUDDY_DATA: /data
+      # 容器内必须监听 0.0.0.0，否则宿主机发布端口打不进来
+      WEBUDDY_HOST: 0.0.0.0
+    ports:
+      # 只发布到回环，对外一律走 nginx
+      - "127.0.0.1:8790:8790"
+    volumes:
+      - ./data:/data

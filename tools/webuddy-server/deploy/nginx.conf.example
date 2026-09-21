@@ -1,0 +1,27 @@
+# webuddy-server vhost — HTTP origin behind nginx, TLS terminated here.
+# Install: sudo cp nginx.conf.example /etc/nginx/conf.d/webuddylog.conf
+#          sudo nginx -t && sudo systemctl reload nginx
+#          sudo certbot --nginx -d <domain>        # 自动补 443 段并续期
+#
+# 上游是 127.0.0.1:8790（PM2 起的 webuddy-server），只监听回环，不直接对外。
+
+server {
+    listen 80;
+    server_name logs.cloudwaveai.cn;
+
+    # 单条会话正文上限 32MB（采集器的 maxTranscriptBytes），JSON 转义后会膨胀，
+    # 所以这里必须明显大于它；服务端自身的 readBody 上限也是 64MB，三者要按
+    # 「nginx ≥ 服务端 ≥ 单条记录」这个关系一起调。
+    client_max_body_size 64m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8790;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        proxy_request_buffering off;
+    }
+}

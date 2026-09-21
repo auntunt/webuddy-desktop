@@ -1,0 +1,159 @@
+name: webuddy-build
+
+# Builds the Webuddy desktop installers on the two OSes that can actually
+# produce them. Windows installers cannot be cross-built from macOS: the relay
+# ships a native process-table addon and the app bundles a native CLI launcher,
+# both of which need MSVC and a Windows runner.
+#
+# Artifacts are uploaded to the workflow run and never published anywhere —
+# this fork removed the upstream `publish` config on purpose, so clients have no
+# update feed to poll.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mac_arch:
+        description: macOS architecture to package
+        type: choice
+        options: [arm64, x64]
+        default: arm64
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-14
+    timeout-minutes: 120
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            mobile/pnpm-lock.yaml
+
+      - name: Cache electron / electron-builder downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-builder-mac-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-builder-mac-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # electron-builder's beforePack asserts out/mobile-web exists, and that
+      # bundle resolves React Native/Expo from mobile/node_modules.
+      - uses: ./.github/actions/install-mobile-dependencies
+
+      - name: Build app bundles
+        run: |
+          pnpm build:desktop
+          pnpm ensure:electron-runtime
+
+      # No Developer ID on an internal build, so this signs ad-hoc. Users open it
+      # the first time via right-click -> Open (or `xattr -dr com.apple.quarantine`).
+      - name: Package DMG
+        run: |
+          pnpm exec electron-builder \
+            --config config/electron-builder.config.cjs \
+            --mac --${{ inputs.mac_arch }} \
+            --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webuddy-macos-${{ inputs.mac_arch }}-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  windows:
+    # Why 2022 and not windows-latest: the 2025 image moved to VS 2026 before
+    # node-gyp could detect it, which breaks native dependency installs.
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/setup@v2
+        with:
+          install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            mobile/pnpm-lock.yaml
+
+      - name: Cache electron / electron-builder downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-builder-win-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-builder-win-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: ./.github/actions/install-mobile-dependencies
+
+      # The relay's Windows process enumeration ships a native addon; failing
+      # here is better than silently degrading every Windows SSH host.
+      - name: Build Windows process-table addon for the relay
+        shell: bash
+        run: node config/scripts/build-windows-process-tree-relay-addon.mjs --arch=x64
+
+      - name: Build app bundles
+        shell: bash
+        env:
+          ORCA_REQUIRE_RELAY_NATIVE_ADDONS: x64
+        run: |
+          pnpm build:desktop
+          pnpm ensure:electron-runtime
+
+      - name: Package EXE
+        shell: bash
+        env:
+          # Deliberately unset: ORCA_DIAGNOSTICS_TOKEN_URL and the telemetry
+          # constants are only injected by upstream release CI. Leaving them
+          # unset keeps this fork's builds silent.
+          ORCA_REQUIRE_RELAY_NATIVE_ADDONS: x64
+        run: |
+          pnpm exec electron-builder \
+            --config config/electron-builder.config.cjs \
+            --win --x64 \
+            --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webuddy-windows-x64-exe
+          path: |
+            dist/*.exe
+          if-no-files-found: error

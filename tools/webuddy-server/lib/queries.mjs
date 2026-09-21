@@ -1,0 +1,184 @@
+/**
+ * Read-side queries: filters, rollups, and the shapes the dashboard renders.
+ *
+ * Aggregation happens in SQL rather than in the browser so the 大屏 stays
+ * responsive as the corpus grows, and so the same numbers are available to any
+ * client (dashboard, export, scheduled analysis).
+ */
+
+/** Shared filter surface: every read endpoint takes the same four knobs. */
+export function buildWhere({ user, agent, from, to, q, ownerId } = {}) {
+  const clauses = []
+  const params = []
+  // Why first and non-negotiable: a member's token must never be able to read
+  // another person's transcripts, whatever query parameters it sends.
+  if (ownerId) {
+    clauses.push('user_id = ?')
+    params.push(ownerId)
+  }
+  if (user) {
+    clauses.push('user_id = ?')
+    params.push(user)
+  }
+  if (agent) {
+    clauses.push('agent_id = ?')
+    params.push(agent)
+  }
+  if (from) {
+    clauses.push('local_date >= ?')
+    params.push(from)
+  }
+  if (to) {
+    clauses.push('local_date <= ?')
+    params.push(to)
+  }
+  if (q) {
+    clauses.push('(cwd LIKE ? OR branch LIKE ? OR transcript_body LIKE ?)')
+    const like = `%${q}%`
+    params.push(like, like, like)
+  }
+  return { sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params }
+}
+
+export function totals(db, filters) {
+  const { sql, params } = buildWhere(filters)
+  return db
+    .prepare(`
+    SELECT COUNT(*) AS sessions,
+           COUNT(DISTINCT user_id) AS people,
+           COALESCE(SUM(turn_count), 0) AS turns,
+           COALESCE(SUM(message_count), 0) AS messages,
+           COALESCE(SUM(transcript_bytes), 0) AS bytes,
+           COALESCE(SUM(tokens_total), 0) AS tokens,
+           COALESCE(SUM(duration_ms), 0) AS duration_ms
+    FROM sessions ${sql}
+  `)
+    .get(...params)
+}
+
+/** groupBy is a column allowlist, never interpolated user input. */
+const GROUPABLE = {
+  person: 'user_id',
+  agent: 'agent_id',
+  day: 'local_date',
+  project: 'cwd',
+  branch: 'branch'
+}
+
+export function groupBy(db, group, filters, limit = 50) {
+  const column = GROUPABLE[group]
+  if (!column) {
+    throw new Error(`unknown group: ${group}`)
+  }
+  const { sql, params } = buildWhere(filters)
+  return db
+    .prepare(`
+    SELECT ${column} AS key,
+           COUNT(*) AS sessions,
+           COALESCE(SUM(turn_count), 0) AS turns,
+           COALESCE(SUM(tokens_total), 0) AS tokens,
+           COALESCE(SUM(duration_ms), 0) AS duration_ms,
+           MIN(local_date) AS first_date,
+           MAX(local_date) AS last_date
+    FROM sessions ${sql}
+    GROUP BY ${column}
+    ORDER BY sessions DESC
+    LIMIT ?
+  `)
+    .all(...params, limit)
+}
+
+const LIST_COLUMNS = `dedupe_key, user_id, device_label, agent_id, agent_label, agent_model,
+  agent_version, session_id, local_date, started_at, ended_at, duration_ms,
+  turn_count, message_count, tokens_total, cwd, branch, transcript_bytes,
+  transcript_sha256, consent_scope, redaction_rules, transcript_truncated, received_at`
+
+export function listSessions(db, filters, limit = 100, offset = 0) {
+  const { sql, params } = buildWhere(filters)
+  return db
+    .prepare(`
+    SELECT ${LIST_COLUMNS} FROM sessions ${sql}
+    ORDER BY local_date DESC, started_at DESC
+    LIMIT ? OFFSET ?
+  `)
+    .all(...params, limit, offset)
+}
+
+export function getSession(db, key) {
+  return db.prepare('SELECT * FROM sessions WHERE dedupe_key = ?').get(key) ?? null
+}
+
+export function facets(db, filters = {}) {
+  const { sql, params } = buildWhere(filters)
+  return {
+    people: db
+      .prepare(
+        `SELECT user_id AS value, COUNT(*) AS n FROM sessions ${sql} GROUP BY user_id ORDER BY n DESC`
+      )
+      .all(...params),
+    agents: db
+      .prepare(
+        `SELECT agent_id AS value, COUNT(*) AS n FROM sessions ${sql} GROUP BY agent_id ORDER BY n DESC`
+      )
+      .all(...params),
+    dates: db
+      .prepare(`SELECT MIN(local_date) AS min, MAX(local_date) AS max FROM sessions ${sql}`)
+      .get(...params)
+  }
+}
+
+/**
+ * Recompute per-day/person/agent rollups. Idempotent, so the scheduler can run
+ * it on a timer and correctness never depends on when it last ran.
+ */
+export function computeRollups(db) {
+  db.exec('DELETE FROM daily_rollups')
+  db.exec(`
+    INSERT INTO daily_rollups
+      (local_date, user_id, agent_id, sessions, turns, messages, tokens, minutes, computed_at)
+    SELECT local_date, user_id, agent_id,
+           COUNT(*), COALESCE(SUM(turn_count), 0), COALESCE(SUM(message_count), 0),
+           COALESCE(SUM(tokens_total), 0), CAST(COALESCE(SUM(duration_ms), 0) / 60000 AS INTEGER),
+           datetime('now')
+    FROM sessions
+    GROUP BY local_date, user_id, agent_id
+  `)
+  return db.prepare('SELECT COUNT(*) AS n FROM daily_rollups').get().n
+}
+
+export function rollups(db, filters = {}) {
+  const clauses = []
+  const params = []
+  if (filters.user) {
+    clauses.push('user_id = ?')
+    params.push(filters.user)
+  }
+  if (filters.agent) {
+    clauses.push('agent_id = ?')
+    params.push(filters.agent)
+  }
+  const sql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
+  return db
+    .prepare(`
+    SELECT * FROM daily_rollups ${sql} ORDER BY local_date DESC, sessions DESC LIMIT 500
+  `)
+    .all(...params)
+}
+
+export function toCsv(rows) {
+  if (rows.length === 0) {
+    return ''
+  }
+  const headers = Object.keys(rows[0])
+  const escape = (value) => {
+    if (value === null || value === undefined) {
+      return ''
+    }
+    const text = String(value)
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  }
+  return [
+    headers.join(','),
+    ...rows.map((row) => headers.map((h) => escape(row[h])).join(','))
+  ].join('\n')
+}

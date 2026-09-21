@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Webuddy 控制台</title>
+<style>
+  :root{
+    --bg:#0a0d12; --surface:#12171f; --surface2:#171e28; --line:#232c39; --line2:#2e3948;
+    --fg:#e9eef6; --dim:#8695aa; --faint:#5b6879;
+    --brand:#4c8dff; --brand-dim:#1e3a6b;
+    --ok:#3ddc97; --warn:#f5b544; --bad:#ff6b6b;
+    --r:10px; --sp:4px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  a{color:var(--brand);text-decoration:none}
+  /* ---- top bar ---- */
+  .top{position:sticky;top:0;z-index:30;background:rgba(10,13,18,.9);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line)}
+  .top-in{max-width:1400px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:20px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.01em}
+  .logo i{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,#4c8dff,#8b5cf6);
+    display:inline-block}
+  .tabs{display:flex;gap:2px}
+  .tab{padding:7px 14px;border-radius:8px;color:var(--dim);cursor:pointer;font-size:13.5px;
+    border:1px solid transparent;transition:.14s}
+  .tab:hover{color:var(--fg);background:var(--surface)}
+  .tab.on{color:var(--fg);background:var(--surface);border-color:var(--line)}
+  .sp{flex:1}
+  .who{font-size:12.5px;color:var(--dim);display:flex;align-items:center;gap:8px}
+  .avatar{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:11px;
+    font-weight:600;color:#fff;background:#33445c;flex:none}
+  /* ---- layout ---- */
+  main{max-width:1400px;margin:0 auto;padding:22px 24px 80px}
+  .view{display:none}.view.on{display:block}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);
+    font-weight:600;margin:0 0 14px}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g5{grid-template-columns:repeat(5,1fr)}
+  @media(max-width:1000px){.g2,.g3,.g5{grid-template-columns:1fr 1fr}}
+  @media(max-width:640px){.g2,.g3,.g5{grid-template-columns:1fr}}
+  /* ---- controls ---- */
+  input,select,button,textarea{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);
+    border:1px solid var(--line2);border-radius:8px;padding:7px 11px;transition:.14s}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);
+    box-shadow:0 0 0 3px rgba(76,141,255,.15)}
+  button{cursor:pointer;background:var(--surface2)}
+  button:hover{border-color:var(--faint)}
+  button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  button.primary:hover{filter:brightness(1.1)}
+  button.ghost{background:transparent;border-color:transparent;color:var(--dim);padding:6px 9px}
+  button.ghost:hover{background:var(--surface2);color:var(--fg)}
+  button.danger{color:var(--bad);border-color:#4a2626}
+  button.danger:hover{background:#2a1616}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  /* ---- KPI ---- */
+  .kpi .k{font-size:12px;color:var(--dim)}
+  .kpi .v{font-size:26px;font-weight:650;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
+  .kpi .u{font-size:12px;color:var(--faint);font-weight:400;margin-left:4px}
+  /* ---- bars ---- */
+  .bar{display:grid;grid-template-columns:190px 1fr 78px;align-items:center;gap:12px;
+    padding:5px 0;font-size:13px}
+  .bar .lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#c6d2e2}
+  .track{height:8px;background:var(--bg);border-radius:99px;overflow:hidden}
+  .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#2563eb,#60a5fa)}
+  .bar .num{text-align:right;color:var(--dim);font-variant-numeric:tabular-nums}
+  /* ---- table ---- */
+  .tw{overflow:auto;border:1px solid var(--line);border-radius:var(--r)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--faint);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;
+    background:var(--surface2);position:sticky;top:56px}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr.clickable{cursor:pointer}
+  tbody tr.clickable:hover{background:var(--surface2)}
+  td.dim,.dim{color:var(--dim)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 9px;
+    border-radius:99px;border:1px solid var(--line2);color:var(--dim);white-space:nowrap}
+  .pill.ok{color:var(--ok);border-color:#1d5c44;background:rgba(61,220,151,.07)}
+  .pill.warn{color:var(--warn);border-color:#5c4a1d;background:rgba(245,181,68,.07)}
+  .pill.bad{color:var(--bad);border-color:#5c2626;background:rgba(255,107,107,.07)}
+  .pill.brand{color:var(--brand);border-color:var(--brand-dim);background:rgba(76,141,255,.08)}
+  .empty{color:var(--faint);text-align:center;padding:44px 0;font-size:13px}
+  /* ---- drawer + modal ---- */
+  .drawer{position:fixed;inset:0 0 0 auto;width:min(900px,94vw);background:var(--surface2);
+    border-left:1px solid var(--line);transform:translateX(100%);transition:transform .22s ease;z-index:50;
+    display:flex;flex-direction:column}
+  .drawer.on{transform:none}
+  .dh{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  .db{overflow:auto;padding:18px 20px;flex:1}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:14px;
+    white-space:pre-wrap;word-break:break-word;font-size:12px;font-family:ui-monospace,Menlo,monospace}
+  .scrim{position:fixed;inset:0;background:rgba(6,8,12,.72);backdrop-filter:blur(4px);z-index:60;
+    display:grid;place-items:center;padding:24px}
+  .modal{background:var(--surface);border:1px solid var(--line2);border-radius:14px;
+    width:100%;max-width:440px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .modal h3{margin:0 0 6px;font-size:16px;font-weight:600}
+  .modal p.sub{margin:0 0 18px;color:var(--dim);font-size:13px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:5px}
+  .field input,.field select{width:100%}
+  .hide{display:none !important}
+  .msg{font-size:12.5px;margin-top:10px;min-height:18px}
+  .msg.bad{color:var(--bad)}.msg.ok{color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in">
+  <span class="logo"><i></i>Webuddy</span>
+  <nav class="tabs">
+    <div class="tab on" data-view="data">数据总览</div>
+    <div class="tab" data-view="analysis">AI 分析</div>
+    <div class="tab" data-view="skills">Skill 库</div>
+    <div class="tab hide" id="tab-users" data-view="users">用户管理</div>
+  </nav>
+  <span class="sp"></span>
+  <span class="who" id="who"></span>
+  <button class="ghost" id="logout">退出</button>
+</div></div>
+
+<main>
+  <!-- ===== 数据总览 ===== -->
+  <section class="view on" id="view-data">
+    <div class="card" style="margin-bottom:16px">
+      <div class="row">
+        <select id="f-user"><option value="">全部人员</option></select>
+        <select id="f-agent"><option value="">全部 agent</option></select>
+        <input id="f-from" type="date"><span class="dim">—</span><input id="f-to" type="date">
+        <input id="f-q" placeholder="搜索 路径 / 分支 / 正文" style="flex:1;min-width:200px">
+        <button class="primary" id="apply">应用</button>
+        <button id="clear">清空</button>
+        <span class="sp"></span>
+        <button id="csv">导出 CSV</button><button id="json">导出 JSON</button>
+      </div>
+    </div>
+    <div class="grid g5" id="kpis" style="margin-bottom:16px"></div>
+    <div class="grid g2" style="margin-bottom:16px">
+      <div class="card"><h2>按天</h2><div id="c-day"></div></div>
+      <div class="card"><h2>按 agent</h2><div id="c-agent"></div></div>
+    </div>
+    <div class="grid g2" style="margin-bottom:16px">
+      <div class="card"><h2>按人</h2><div id="c-person"></div></div>
+      <div class="card"><h2>按项目</h2><div id="c-project"></div></div>
+    </div>
+    <div class="card"><h2>会话明细 · 点行查看正文</h2><div id="rows"></div></div>
+  </section>
+
+  <!-- ===== 用户管理 ===== -->
+  <section class="view" id="view-users">
+    <div class="card" style="margin-bottom:16px">
+      <div class="row">
+        <button class="primary" id="new-user">新建用户</button>
+        <span class="sp"></span>
+        <input id="u-q" placeholder="按用户名/姓名筛选" style="width:220px">
+        <button id="u-refresh">刷新</button>
+      </div>
+    </div>
+    <div class="card"><h2>账号</h2><div id="users"></div></div>
+  </section>
+</main>
+
+<aside class="drawer" id="drawer">
+  <div class="dh"><strong id="d-title">会话</strong><span class="sp"></span>
+    <button class="ghost" id="d-close">关闭</button></div>
+  <div class="db" id="d-body"></div>
+</aside>
+
+<div class="scrim hide" id="scrim"><div class="modal" id="modal"></div></div>
+
+<div class="scrim" id="login">
+  <form class="modal" id="login-form">
+    <h3>登录 Webuddy 控制台</h3>
+    <p class="sub">用你的公司账号登录。成员只能看到自己的数据，管理员可看全量。</p>
+    <div class="field"><label>用户名</label><input id="l-user" autocomplete="username" autofocus></div>
+    <div class="field"><label>密码</label><input id="l-pass" type="password" autocomplete="current-password"></div>
+    <button class="primary" style="width:100%">登录</button>
+    <div class="msg bad" id="l-err"></div>
+  </form>
+</div>
+
+  <!-- ===== AI 分析 ===== -->
+  <section class="view" id="view-analysis">
+    <div class="card" style="margin-bottom:16px">
+      <div class="row">
+        <select id="a-user"></select>
+        <button class="primary" id="a-run">立即分析</button>
+        <button id="a-refresh">刷新</button>
+        <span class="sp"></span>
+        <span class="dim small" id="a-meta"></span>
+      </div>
+      <div class="msg" id="a-msg"></div>
+    </div>
+    <div class="card"><h2>分析结果</h2><div id="a-body"></div></div>
+  </section>
+
+  <!-- ===== Skill 库 ===== -->
+  <section class="view" id="view-skills">
+    <div class="card" style="margin-bottom:16px">
+      <div class="row">
+        <select id="s-user"></select>
+        <button class="primary" id="s-extract">立即提炼</button>
+        <button id="s-refresh">刷新</button>
+        <span class="sp"></span>
+        <a id="s-bundle" class="pill brand" href="#" download>下载整包</a>
+      </div>
+      <div class="msg" id="s-msg"></div>
+    </div>
+    <div class="card"><h2>提炼出的 skill</h2><div id="s-list"></div></div>
+  </section>
+
+  <script src="/app.js"></script>
+  <script src="/admin.js"></script>
+  <script src="/analysis.js"></script>
+  <script src="/skills.js"></script>
+</body>
+</html>
