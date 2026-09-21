@@ -1,112 +1,137 @@
 # relay 部署交接（手机控制桌面）
 
-目标：手机能操作桌面 Webuddy 会话，**全部数据走我们自己的服务器**
-（`https://webuddyserver.cloudwaveai.cn/relay`），不新增域名。
+目标：手机能操作桌面 Webuddy 会话，**全部数据走我们自己的服务器**，
+且**不新增域名、不新增端口**。
 
 ---
 
-## 一、已完成并线上验证
-
-**1. relay 的签发方（我们这边，已完成）**
+## 当前状态
 
 ```
-tools/webuddy-server/lib/relay-tokens.mjs   零依赖 ES256 签发（node:crypto）
-GET  /api/relay/jwks                        公钥端点，免鉴权（relay 来取）
-POST /api/relay/token                       给已登录用户签发 host-control token
+✅ 1) relay 容器跑起来        webuddy-relay  →  127.0.0.1:8791
+✅ 2) nginx 路径分流（443）   /v1/* /health /ready → relay；其余 → webuddy-server
+✅ 3) 鉴权对接验收通过        我们的 token → 101；伪造 → 401
+⬜ 4) 桌面端指向我们的 relay
+⬜ 5) 手机端产物托管 + 配对
+⬜ 6) 端到端联调
 ```
 
-线上实测输出：
+验收命令（**必须 `--http1.1`**，原因见坑 3）：
+```bash
+curl -s --http1.1 -o /dev/null -w '%{http_code}\n' \
+  -H 'Upgrade: websocket' -H 'Connection: Upgrade' \
+  -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+  -H "authorization: Bearer <relay token>" \
+  https://webuddyserver.cloudwaveai.cn/v1/host/control
+# 期望 101；不带 token 或伪造签名则 401
+```
+
+重装：`tools/webuddy-server/deploy/deploy-relay.sh`
+
+---
+
+## 架构
+
+```
+手机 ──wss──►  webuddyserver.cloudwaveai.cn (443, nginx)
+                    │  location /v1/            → 127.0.0.1:8791 (relay)
+                    │  location /api/ + 静态文件 → 127.0.0.1:8790 (webuddy-server)
+                    ▼
+               relay（单 cell + SQLite）
+                    ▲
+桌面 Webuddy ──wss──┘  双方都主动连 relay，由它牵线（内网互不可达的问题由此解决）
+```
+
+relay 与 webuddy-server 的路径**完全不重叠**：
+
+| 服务 | 路径 |
+|---|---|
+| webuddy-server | `/` `/app.js` `/admin.js` `/analysis.js` `/skills.js` `/api/*` |
+| relay | `/v1/connect/<hostId>` `/v1/host/control` `/v1/host/data/<connId>` `/v1/regions` `/health` `/ready` |
+
+---
+
+## token 契约（已对齐，勿改）
+
+```
+算法      ES256（EC P-256；node:crypto 的 ieee-p1363 裸签名 —— DER 会验签失败）
+issuer    = ORCA_RELAY_AUTH_ISSUER = https://webuddyserver.cloudwaveai.cn
+audience  = 'orca-relay'
+claims    sub, prof, relayHostId(/^[A-Za-z0-9_-]{16}$/ 恰好16位),
+          purpose:'host-control', exp
+```
+
+签发方在 `tools/webuddy-server/lib/relay-tokens.mjs`：
+- `GET /api/relay/jwks` 公钥（免鉴权，relay 来取）
+- `POST /api/relay/token` 给已登录用户签发
+- 私钥持久化在 `WEBUDDY_DATA/relay-signing-key.json`（600）—— **删了所有 token 立刻失效**
+
+线上实测：
 ```
 JWKS   kty=EC crv=P-256 alg=ES256 kid=Z3EF8xgHdoHtllyA
-Token  sub=liyibin  relayHostId=_FQSKWDddSd-jKLs  purpose=host-control
+Token  sub=admin  relayHostId=lZEt-6gv66L6_R3U  purpose=host-control
        iss=https://webuddyserver.cloudwaveai.cn   aud=orca-relay
 ```
 
-密钥持久化在 `WEBUDDY_DATA/relay-signing-key.json`（600）——**别删**，删了所有已签发的 token 立刻失效。
+---
 
-**2. relay 侧要求的确切契约**（读自 `cloud/apps/relay/src/relay-token-verifier.ts`）
+## 踩过的坑（都是实测出来的）
 
-```
-算法      ES256（EC P-256；不是 RS256。签名必须 ieee-p1363 裸 r||s，DER 会验签失败）
-issuer    必须等于 ORCA_RELAY_AUTH_ISSUER
-audience  必须等于 'orca-relay'
-claims    sub, prof, relayHostId(/^[A-Za-z0-9_-]{16}$/ 恰好16位),
-          purpose: 'host-control', exp
-```
+1. **`PUBLIC_URL` 必须是 origin，不能带路径**
+   `https://host/relay` 被拒（`must be an origin`）。校验是 `url.origin !== value`，
+   而 origin 含端口 —— 所以 `:8443` 能过校验，但要在安全组开端口（实测 8443 被挡）。
+   最终选择：**挂域名根 + nginx 按路径分流**，网络配置一行都不用改。
+
+2. **容器挂载目录权限**
+   让 docker 自己建挂载目录会属 `root`，容器内是 `node`(uid 1000)，SQLite 报
+   `ERR_SQLITE_ERROR: unable to open database file`。必须先自己 `mkdir` + `chmod 777`。
+
+3. **测 WebSocket 必须 `--http1.1`**
+   curl 默认协商 HTTP/2，而 HTTP/2 禁止 `Upgrade`/`Connection` 头，nginx 会丢掉，
+   relay 于是收到普通 GET 返回 404。**这不是配置错误**。排查顺序：先直连 relay
+   对照（101/401），再经 nginx —— 能立刻区分是配置问题还是测试方法问题。
+
+4. **只需跑 `apps/relay` 一个进程**
+   `CELL_ID=combined` 单 cell、不设 `DIRECTOR_URL`、`DATABASE_URL` 留空走 SQLite。
+   `relay-ops` / `fence-broker` / `rehome` 都不用起。
+
+5. **构建上下文只要三个目录**
+   `apps/relay` + `packages/relay-contract` + `packages/postgres-schema` + 根配置，
+   共 436KB，不用传整个 monorepo（505 文件）。
 
 ---
 
-## 二、relay 必填配置清单
+## 剩余步骤
 
-启动 `cloud/apps/relay`（**只跑这一个进程，单 cell**）：
+**4) 桌面端指向我们的 relay**
 
-| 变量 | 值 | 说明 |
-|---|---|---|
-| `ORCA_RELAY_PUBLIC_URL` | `https://webuddyserver.cloudwaveai.cn/relay` | 对外地址 |
-| `ORCA_RELAY_CELL_URL` | 同上 | 单 cell 时与 PUBLIC 一致 |
-| `ORCA_RELAY_CELL_ID` | `combined` | 默认值，即单进程模式 |
-| `ORCA_RELAY_AUTH_ISSUER` | `https://webuddyserver.cloudwaveai.cn` | 与 token 的 iss 一致 |
-| `ORCA_RELAY_JWKS_URL` | `https://webuddyserver.cloudwaveai.cn/api/relay/jwks` | 取我们的公钥 |
-| `ORCA_RELAY_ASSIGNMENT_SIGNING_KEY` | 随机 ≥32 位 | 自己生成 |
-| `ORCA_RELAY_DATA_DIR` | `/data/relay` | 挂载卷 |
-| `DATABASE_URL` | **留空** | 留空即用本地 SQLite（`<DATA_DIR>/orca-relay.sqlite`） |
-| `ORCA_RELAY_ADMIN_AUDIENCE` | 待定 | 必填但仅运维用，见下 |
-| `ORCA_RELAY_DEPLOY_SERVICE_ACCOUNT` | 待定 | 必填，仅运维用 |
-| `ORCA_RELAY_DIRECTOR_URL` | **不设** | 单 cell 不需要 director |
+`src/main/orca-profiles/profile-cloud-auth-config.ts` 里现在是
+`https://relay.cloudwaveai.cn`，改成 `https://webuddyserver.cloudwaveai.cn`；
+桌面端还要改成用我们的用户身份去 `POST /api/relay/token` 换 relay token
+（现在走的还是上游账号逻辑）。
 
-**两个必填但只服务运维的项**（`ADMIN_AUDIENCE` / `DEPLOY_SERVICE_ACCOUNT`）：
-它们属于 admin token 的校验链，正常客户端流量不走。先填自洽值让它通过启动校验，
-若启动失败就看它的报错再调（这是**预计会卡一轮**的地方）。
+**5) 手机端托管**
+
+`out/mobile-web`（`pnpm build:mobile-web` 产出）托管到 webuddy-server 或 nginx 静态目录，
+配对入口做扫码。
+
+**6) 端到端**
+
+手机连上桌面 → 打开一个会话 → 验证双向输入输出。
 
 ---
 
-## 三、剩余步骤（每步可独立验证）
+## 运维备忘
 
-```
-1. relay 容器起来          → curl http://127.0.0.1:8791/health 返回 200
-2. nginx 加 location /relay/ → 从外网 curl .../relay/health 返回 200
-3. 桌面端指向自己           → 桌面 UI 显示"已连接 relay"
-4. 手机端托管 out/mobile-web → 扫码能打开配对页
-5. 端到端                   → 手机打开桌面的一个会话
-```
-
-**第 2 步的 nginx 片段**（加在现有 vhost 里，复用现有证书）：
-```nginx
-location /relay/ {
-    proxy_pass http://127.0.0.1:8791/;   # 结尾斜杠必须要有：剥掉 /relay 前缀
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;      # WebSocket 升级
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_read_timeout 3600s;                    # 长连接别被掐
-    proxy_buffering off;
-}
-```
-少了 `proxy_pass` 结尾那个 `/`，relay 会收到 `/relay/...` 而不是它期望的 `/`，直接 404。
-
-**第 1 步的本机构建**（`cloud/` 是 pnpm monorepo，505 文件）：
-```bash
-cd cloud && pnpm install && pnpm --filter @orca/relay build
-```
-
----
-
-## 四、已知约束 / 坑
-
-- **不要新增域名**：relay 挂 `/relay` 路径即可，桌面端配 `wss://webuddyserver.cloudwaveai.cn/relay/v1/connect/...`
-- **前缀不能随便换**：relay 内部用绝对路径 `new URL('/v1/admin/...', publicUrl)`，
-  会丢掉路径前缀。但那只用于 director↔cell 运维通道，单 cell 不走，所以不影响。
-- **`cloud/` 不要打进客户端安装包**：它已被 `electron-builder.config.cjs` 排除，保持现状。
-- 服务器上跑 `sh ~/services/webuddy-server/deploy/deploy.sh` 是**合并**写 `.env`，
+- 服务器上 `sh ~/services/webuddy-server/deploy/deploy.sh` 是**合并**写 `.env`，
   不会冲掉模型配置（这个 bug 已修，别改回去）。
 - 服务器 curl 版本老，不认 `--retry-all-errors`。
+- `cloud/` 不要打进客户端安装包（已由 `electron-builder.config.cjs` 排除，保持现状）。
 
----
-
-## 五、相关凭据位置
+## 凭据位置
 
 ```
-本机 ~/.webuddy-server/         admin-password / liyibin-password
-服务器 ~/services/webuddy-server/.env   LLM_BASE_URL / LLM_API_KEY / LLM_MODEL
-GitHub PAT                      用完建议吊销
+本机 ~/.webuddy-server/                 admin-password / liyibin-password
+服务器 ~/services/webuddy-server/.env    LLM_BASE_URL / LLM_API_KEY / LLM_MODEL
+GitHub PAT                               用完建议吊销
 ```
