@@ -31,6 +31,13 @@ import { workSummary } from './lib/insights.mjs'
 import { lastAnalysis, runAnalysis, startAnalysisSchedule } from './lib/analysis-job.mjs'
 import { llmConfig } from './lib/llm.mjs'
 import {
+  jwksFor,
+  loadOrCreateSigningKey,
+  mintRelayToken,
+  relayHostIdFor,
+  signingKeyId
+} from './lib/relay-tokens.mjs'
+import {
   extractSkills,
   getSkill,
   listSkills,
@@ -55,6 +62,11 @@ const bootstrapped = ensureBootstrapAdmin(db, {
   username: process.env.WEBUDDY_ADMIN_USER,
   password: process.env.WEBUDDY_ADMIN_PASSWORD
 })
+
+// relay 的签发密钥：持久化在数据目录，重启后旧 token 仍验得过。
+const relayKeys = loadOrCreateSigningKey(DATA_DIR)
+const relayKid = signingKeyId(relayKeys.publicJwk)
+const relayIssuer = process.env.WEBUDDY_RELAY_ISSUER || `https://${process.env.WEBUDDY_PUBLIC_HOST || 'webuddyserver.cloudwaveai.cn'}`
 
 const REQUIRED = ['schema', 'actor', 'agent', 'session', 'transcript', 'consent']
 const REQUIRED_PATHS = [
@@ -155,6 +167,10 @@ const server = createServer(async (req, res) => {
         ok: true,
         rollups: db.prepare('SELECT COUNT(*) AS n FROM daily_rollups').get().n
       })
+    }
+    // Why 免鉴权：JWKS 本身就是公钥，且 relay 要在没有我们用户凭证的情况下取它。
+    if (route === '/api/relay/jwks') {
+      return json(res, 200, jwksFor(relayKeys.publicJwk, relayKid))
     }
     // Why before authentication: everything the login screen itself loads.
     if (!route.startsWith('/api/')) {
@@ -314,6 +330,24 @@ const server = createServer(async (req, res) => {
     }
     if (route === '/api/skills/extract' && req.method === 'POST') {
       return json(res, 200, await extractSkills(db, auth.user.username))
+    }
+
+    // ---- relay 接入：给已登录用户签发 host-control token ----
+    if (route === '/api/relay/token' && req.method === 'POST') {
+      const ttl = Math.min(Number(url.searchParams.get('ttl') || 3600), 86400)
+      return json(res, 200, {
+        token: mintRelayToken({
+          privateKey: relayKeys.privateKey,
+          kid: relayKid,
+          issuer: relayIssuer,
+          userId: auth.user.username,
+          ttlSeconds: ttl
+        }),
+        relayHostId: relayHostIdFor(auth.user.username),
+        issuer: relayIssuer,
+        jwks: `${relayIssuer}/api/relay/jwks`,
+        expiresInSeconds: ttl
+      })
     }
 
     if (route === '/api/stats') {

@@ -16,10 +16,7 @@ import {
   renderSessionHistorySettingsSection,
   renderAutomationsSettingsSection,
   renderGeneralSettingsSection,
-  renderIntegrationsSettingsSection,
-  renderOrcaAccountSettingsSection,
-  renderSetupGuideSettingsSection,
-  renderShareSkillsSettingsSection
+  renderIntegrationsSettingsSection
 } from './settings-setup-workflow-section-renderers'
 import {
   renderGitSettingsSection,
@@ -28,7 +25,6 @@ import {
 import {
   renderBrowserSettingsSection,
   renderFloatingWorkspaceSettingsSection,
-  renderMobileEmulatorSettingsSection,
   renderQuickCommandsSettingsSection,
   renderTerminalSettingsSection
 } from './settings-interface-primary-section-renderers'
@@ -119,20 +115,19 @@ export function renderSettingsPage(context: SettingsRenderContext): React.JSX.El
                 {renderOrchestrationSettingsSection(context)}
                 {renderLinearSettingsSection(context)}
                 {renderDesktopCapabilitySettingsSections(context)}
-                {renderOrcaAccountSettingsSection(context)}
-                {renderSetupGuideSettingsSection(context)}
+                {/* 以下板块依赖上游 ORCA 云服务（账号/分享/手机/引导），
+                    我们的服务端没有对应实现，入口一律不渲染 —— 既占位置，
+                    点进去也只会失败。 */}
                 {renderGeneralSettingsSection(context)}
                 {renderIntegrationsSettingsSection(context)}
                 {renderAutomationsSettingsSection(context)}
                 {renderArtifactsSettingsSection(context)}
-                {renderShareSkillsSettingsSection(context)}
                 {renderSessionHistorySettingsSection(context)}
                 {renderGitSettingsSection(context)}
                 {renderTasksSettingsSection(context)}
                 {renderTerminalSettingsSection(context)}
                 {renderQuickCommandsSettingsSection(context)}
                 {renderBrowserSettingsSection(context)}
-                {renderMobileEmulatorSettingsSection(context)}
                 {renderFloatingWorkspaceSettingsSection(context)}
                 {renderAppearanceSettingsSection(context)}
                 {renderInputSettingsSection(context)}
