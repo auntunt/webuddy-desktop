@@ -80,6 +80,10 @@ jobs:
       # No Developer ID on an internal build, so this signs ad-hoc. Users open it
       # the first time via right-click -> Open (or `xattr -dr com.apple.quarantine`).
       - name: Package DMG
+        env:
+          # 配置里的 mac.target.arch 会盖掉命令行参数，架构必须从环境变量走。
+          # 一次只打一种架构：另一种的原生依赖没有安装。
+          WEBUDDY_BUILD_ARCHS: ${{ inputs.mac_arch }}
         run: |
           pnpm exec electron-builder \
             --config config/electron-builder.config.cjs \
