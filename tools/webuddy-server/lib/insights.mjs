@@ -5,6 +5,8 @@
  * 一律按 localDate（本地日历日）聚合 —— 用 UTC 会把跨零点的工作算到前一天。
  */
 
+import { buildWhere } from './queries.mjs'
+
 const DAY = 'local_date'
 
 /**
@@ -18,9 +20,12 @@ const MAX_SESSION_MS = 12 * 60 * 60 * 1000
 const ACTIVE_MS = `MIN(COALESCE(duration_ms, 0), ${MAX_SESSION_MS})`
 const CLAMP_COUNT = `SUM(CASE WHEN COALESCE(duration_ms, 0) > ${MAX_SESSION_MS} THEN 1 ELSE 0 END)`
 
-export function workSummary(db, ownerId) {
-  const scope = ownerId ? 'WHERE user_id = ?' : ''
-  const args = ownerId ? [ownerId] : []
+/**
+ * Why 收整套 filters 而不是只收 ownerId：KPI 卡片全部来自这里，
+ * 只认 owner 的话，用户切 7 天/30 天上面五个数字纹丝不动 —— 看起来就是"筛选没生效"。
+ */
+export function workSummary(db, filters = {}) {
+  const { sql: scope, params } = buildWhere(filters)
 
   const overall = db
     .prepare(`
@@ -32,12 +37,13 @@ export function workSummary(db, ownerId) {
            COALESCE(SUM(turn_count), 0) AS turns,
            COALESCE(SUM(message_count), 0) AS messages,
            COALESCE(SUM(tokens_total), 0) AS tokens,
+           COALESCE(SUM(transcript_bytes), 0) AS bytes,
            COUNT(DISTINCT cwd) AS projects,
            COALESCE(${CLAMP_COUNT}, 0) AS clamped_sessions,
            COALESCE(MAX(duration_ms), 0) AS longest_raw_ms
     FROM sessions ${scope}
   `)
-    .get(...args)
+    .get(...params)
 
   // 近 14 天：没数据的天由前端补零，否则趋势线会骗人。
   const days = db
@@ -50,7 +56,7 @@ export function workSummary(db, ownerId) {
     FROM sessions ${scope}
     GROUP BY ${DAY} ORDER BY ${DAY} DESC LIMIT 14
   `)
-    .all(...args)
+    .all(...params)
 
   const busiest = db
     .prepare(`
@@ -58,7 +64,7 @@ export function workSummary(db, ownerId) {
     FROM sessions ${scope}
     GROUP BY ${DAY} ORDER BY duration_ms DESC LIMIT 3
   `)
-    .all(...args)
+    .all(...params)
 
   const byProject = db
     .prepare(`
@@ -69,7 +75,7 @@ export function workSummary(db, ownerId) {
     FROM sessions ${scope}
     GROUP BY cwd ORDER BY duration_ms DESC LIMIT 12
   `)
-    .all(...args)
+    .all(...params)
 
   const byAgent = db
     .prepare(`
@@ -79,7 +85,7 @@ export function workSummary(db, ownerId) {
     FROM sessions ${scope}
     GROUP BY agent_id ORDER BY sessions DESC
   `)
-    .all(...args)
+    .all(...params)
 
   const models = db
     .prepare(`
@@ -87,7 +93,7 @@ export function workSummary(db, ownerId) {
     FROM sessions ${scope ? `${scope} AND` : 'WHERE'} agent_model IS NOT NULL
     GROUP BY agent_model ORDER BY sessions DESC LIMIT 8
   `)
-    .all(...args)
+    .all(...params)
 
   const spanDays =
     overall.first_day && overall.last_day

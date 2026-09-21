@@ -102,6 +102,16 @@ const sessionCollectorResources = {
   to: 'webuddy-agent',
   filter: ['**/*.mjs', '**/*.json', '!**/__tests__/**']
 }
+
+/**
+ * Why 可被环境变量覆盖：这里的 arch 会盖掉命令行的 --arm64/--x64。
+ * CI 一次只装一种架构的原生依赖（@parcel/watcher / sherpa-onnx 各有 x64 与
+ * arm64 变体），写死双架构就会在没有对应原生包时打包失败。
+ * 不设该变量时保持双架构，和上游发布行为一致。
+ */
+const macBuildArchs = process.env.WEBUDDY_BUILD_ARCHS
+  ? process.env.WEBUDDY_BUILD_ARCHS.split(',').map((arch) => arch.trim())
+  : ['x64', 'arm64']
 const commonExtraResources = [
   relayExtraResource,
   bundledPluginResources,
@@ -562,11 +572,11 @@ module.exports = {
     target: [
       {
         target: 'dmg',
-        arch: ['x64', 'arm64']
+        arch: macBuildArchs
       },
       {
         target: 'zip',
-        arch: ['x64', 'arm64']
+        arch: macBuildArchs
       }
     ]
   },

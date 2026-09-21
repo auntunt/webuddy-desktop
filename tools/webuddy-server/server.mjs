@@ -21,7 +21,8 @@ import {
   listSessions,
   rollups,
   toCsv,
-  totals
+  totals,
+  countSessions
 } from './lib/queries.mjs'
 import { ensureBootstrapAdmin, resolveToken } from './lib/auth.mjs'
 import { handleAuthRoute } from './lib/auth-routes.mjs'
@@ -117,6 +118,7 @@ function filtersOf(url, auth) {
     ownerId: auth.user.role === 'admin' ? undefined : auth.user.username,
     user: q.get('user') || undefined,
     agent: q.get('agent') || undefined,
+    project: q.get('project') || undefined,
     from: q.get('from') || undefined,
     to: q.get('to') || undefined,
     q: q.get('q') || undefined
@@ -235,13 +237,16 @@ const server = createServer(async (req, res) => {
 
     // ---- 个人工作情况分析 ----
     if (route === '/api/insights' && req.method === 'GET') {
+      // 带上全套筛选（日期/项目/agent/关键词），否则切区间时 KPI 不会变。
+      const filters = filtersOf(url, auth)
       const wanted = url.searchParams.get('user')
-      // 成员永远只看自己；管理员默认看自己，可显式指定某人或 __all__ 看全组。
-      let owner = auth.user.username
       if (auth.user.role === 'admin') {
-        owner = wanted === '__all__' ? undefined : wanted || auth.user.username
+        // 成员被 ownerId 钉在自己身上；管理员「没传 user」或「user=__all__」都表示全组。
+        // Why 不能默认成管理员自己：admin 这类账号名下往往 0 条数据，默认成自己会让
+        // KPI 全 0，而同页图表（走 /api/stats）却是全组 —— 同一屏两套口径，看着就像坏了。
+        filters.user = !wanted || wanted === '__all__' ? undefined : wanted
       }
-      return json(res, 200, workSummary(db, owner))
+      return json(res, 200, workSummary(db, filters))
     }
 
     // ---- LLM 分析：默认 2 小时一轮，无新数据自动跳过 ----
@@ -313,14 +318,26 @@ const server = createServer(async (req, res) => {
 
     if (route === '/api/stats') {
       const group = url.searchParams.get('group') || 'person'
+      // 图表要能"展开全部"，所以分组上限得可调；500 是防止有人一次拉爆。
+      const limit = Math.min(Number(url.searchParams.get('limit') || 50), 500)
       const filters = filtersOf(url, auth)
-      return json(res, 200, { totals: totals(db, filters), groups: groupBy(db, group, filters) })
+      return json(res, 200, {
+        totals: totals(db, filters),
+        groups: groupBy(db, group, filters, limit)
+      })
     }
 
     if (route === '/api/sessions') {
-      const limit = Math.min(Number(url.searchParams.get('limit') || 100), 500)
+      const limit = Math.min(Number(url.searchParams.get('limit') || 50), 200)
       const offset = Math.max(Number(url.searchParams.get('offset') || 0), 0)
-      return json(res, 200, { items: listSessions(db, filtersOf(url, auth), limit, offset) })
+      const filters = filtersOf(url, auth)
+      // 带上 total，前端才能画翻页器（否则只能靠"下一页点不动了"来判断到底）。
+      return json(res, 200, {
+        items: listSessions(db, filters, limit, offset),
+        total: countSessions(db, filters),
+        limit,
+        offset
+      })
     }
 
     if (route.startsWith('/api/sessions/')) {

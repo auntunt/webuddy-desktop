@@ -7,7 +7,7 @@
  */
 
 /** Shared filter surface: every read endpoint takes the same four knobs. */
-export function buildWhere({ user, agent, from, to, q, ownerId } = {}) {
+export function buildWhere({ user, agent, project, from, to, q, ownerId } = {}) {
   const clauses = []
   const params = []
   // Why first and non-negotiable: a member's token must never be able to read
@@ -23,6 +23,10 @@ export function buildWhere({ user, agent, from, to, q, ownerId } = {}) {
   if (agent) {
     clauses.push('agent_id = ?')
     params.push(agent)
+  }
+  if (project) {
+    clauses.push('cwd = ?')
+    params.push(project)
   }
   if (from) {
     clauses.push('local_date >= ?')
@@ -71,6 +75,9 @@ export function groupBy(db, group, filters, limit = 50) {
     throw new Error(`unknown group: ${group}`)
   }
   const { sql, params } = buildWhere(filters)
+  // Why 按天要按日期排：时间序列按"会话数"排出来是乱的，看不出节奏。
+  // 其余维度是量的排行，才用 sessions DESC。
+  const order = group === 'day' ? `${column} ASC` : 'sessions DESC'
   return db
     .prepare(`
     SELECT ${column} AS key,
@@ -82,7 +89,7 @@ export function groupBy(db, group, filters, limit = 50) {
            MAX(local_date) AS last_date
     FROM sessions ${sql}
     GROUP BY ${column}
-    ORDER BY sessions DESC
+    ORDER BY ${order}
     LIMIT ?
   `)
     .all(...params, limit)
@@ -104,6 +111,12 @@ export function listSessions(db, filters, limit = 100, offset = 0) {
     .all(...params, limit, offset)
 }
 
+/** 分页要知道总数，否则翻页器只能瞎猜。 */
+export function countSessions(db, filters) {
+  const { sql, params } = buildWhere(filters)
+  return db.prepare(`SELECT COUNT(*) AS n FROM sessions ${sql}`).get(...params).n
+}
+
 export function getSession(db, key) {
   return db.prepare('SELECT * FROM sessions WHERE dedupe_key = ?').get(key) ?? null
 }
@@ -119,6 +132,13 @@ export function facets(db, filters = {}) {
     agents: db
       .prepare(
         `SELECT agent_id AS value, COUNT(*) AS n FROM sessions ${sql} GROUP BY agent_id ORDER BY n DESC`
+      )
+      .all(...params),
+    // 给项目筛选用：按最近活跃倒序 —— 顺手干活时想选的是"在用的"，不是"总量最大的"。
+    projects: db
+      .prepare(
+        `SELECT cwd AS value, COUNT(*) AS n, MAX(local_date) AS last_day
+         FROM sessions ${sql} GROUP BY cwd ORDER BY last_day DESC LIMIT 300`
       )
       .all(...params),
     dates: db

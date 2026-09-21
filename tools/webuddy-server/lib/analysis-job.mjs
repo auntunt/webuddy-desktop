@@ -74,10 +74,12 @@ function recentSessionDigest(db, ownerId, since, limit) {
 }
 
 export function lastAnalysis(db, ownerId) {
-  const row = ownerId
-    ? db.prepare('SELECT * FROM analyses WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(ownerId)
-    : db.prepare('SELECT * FROM analyses ORDER BY id DESC LIMIT 1').get()
-  return row ?? null
+  // Why 精确匹配 '__all__' 而不是"取全库最新一条"：后者会捞到别人的记录，
+  // 于是"全组"视图显示出"覆盖 0 会话"这种看着像坏了的结果。
+  const key = ownerId ?? '__all__'
+  return (
+    db.prepare('SELECT * FROM analyses WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(key) ?? null
+  )
 }
 
 /**
@@ -95,7 +97,9 @@ export async function runAnalysis(db, ownerId, env = process.env) {
     return { skipped: 'no-new-data', watermark: current }
   }
 
-  const summary = workSummary(db, ownerId)
+  // workSummary 收的是筛选对象，不是 ownerId 字符串 —— 传字符串会被解构掉，
+  // 静默退化成查全库，个人的分析里就混进别人的数据。
+  const summary = workSummary(db, ownerId ? { user: ownerId } : {})
   const digest = recentSessionDigest(
     db,
     ownerId,
@@ -141,23 +145,35 @@ export function startAnalysisSchedule(db, { env = process.env, ownerId = null } 
   let running = false
   const tick = async () => {
     if (running) {
-      return
+      return []
     }
     running = true
+    const outcomes = []
     try {
-      const result = await runAnalysis(db, ownerId, env)
-      if (result.skipped) {
-        console.log(`[analysis] skipped (${result.skipped})`)
-      } else {
-        console.log(
-          `[analysis] done: ${result.inputTokens}+${result.outputTokens} tokens, ${result.model}`
-        )
+      // Why 按人逐个跑 + 一份全组：只跑全组的话，个人打开页面默认看的是自己，
+      // 永远停在"还没有分析结果"，整个功能看着就是坏的。
+      const targets = ownerId
+        ? [ownerId]
+        : [null, ...db.prepare('SELECT DISTINCT user_id FROM sessions').all().map((r) => r.user_id)]
+      for (const target of targets) {
+        try {
+          const result = await runAnalysis(db, target, env)
+          outcomes.push(result)
+          if (result.skipped) {
+            console.log(`[analysis] ${target ?? '__all__'} skipped (${result.skipped})`)
+          } else {
+            console.log(
+              `[analysis] ${target ?? '__all__'}: ${result.inputTokens}+${result.outputTokens} tokens, ${result.model}`
+            )
+          }
+        } catch (error) {
+          console.error(`[analysis] ${target ?? '__all__'} failed:`, error?.message ?? error)
+        }
       }
-    } catch (error) {
-      console.error('[analysis] failed:', error?.message ?? error)
     } finally {
       running = false
     }
+    return outcomes
   }
   const timer = setInterval(() => void tick(), intervalMs)
   timer.unref?.()
