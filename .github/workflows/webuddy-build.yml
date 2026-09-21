@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   macos:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 120
     env:
       NODE_OPTIONS: --max-old-space-size=4096
@@ -65,7 +65,16 @@ jobs:
 
       - name: Build app bundles
         run: |
-          pnpm build
+          # 跳过 typecheck：本工作流只负责产出安装包。
+          # Why: runner 上的原生 tsc 会 OOM —— Windows 的 tsc 是 Go 二进制，
+          # NODE_OPTIONS 管不到它。类型检查由本地和仓库自己的 CI 负责。
+          pnpm build:relay
+          pnpm build:cli
+          pnpm build:electron-vite
+          pnpm verify:built-skills-cli
+          pnpm build:web-from-renderer
+          pnpm build:mobile-web
+          pnpm build:native
           pnpm ensure:electron-runtime
 
       # No Developer ID on an internal build, so this signs ad-hoc. Users open it
@@ -135,7 +144,16 @@ jobs:
         env:
           ORCA_REQUIRE_RELAY_NATIVE_ADDONS: x64
         run: |
-          pnpm build
+          # 跳过 typecheck：本工作流只负责产出安装包。
+          # Why: runner 上的原生 tsc 会 OOM —— Windows 的 tsc 是 Go 二进制，
+          # NODE_OPTIONS 管不到它。类型检查由本地和仓库自己的 CI 负责。
+          pnpm build:relay
+          pnpm build:cli
+          pnpm build:electron-vite
+          pnpm verify:built-skills-cli
+          pnpm build:web-from-renderer
+          pnpm build:mobile-web
+          pnpm build:native
           pnpm ensure:electron-runtime
 
       - name: Package EXE
