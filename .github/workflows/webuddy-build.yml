@@ -65,7 +65,7 @@ jobs:
 
       - name: Build app bundles
         run: |
-          pnpm build:desktop
+          pnpm build
           pnpm ensure:electron-runtime
 
       # No Developer ID on an internal build, so this signs ad-hoc. Users open it
@@ -135,7 +135,7 @@ jobs:
         env:
           ORCA_REQUIRE_RELAY_NATIVE_ADDONS: x64
         run: |
-          pnpm build:desktop
+          pnpm build
           pnpm ensure:electron-runtime
 
       - name: Package EXE
