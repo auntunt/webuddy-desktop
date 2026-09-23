@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { hasCustomTitleBar } from '@/app-shell/app-window-chrome'
 import { WindowControls } from '@/app-shell/WindowControls'
 import { translate } from '@/i18n/i18n'
+import { useAppStore } from '@/store'
 import {
   orcaProfileSignInResultError,
   orcaProfileSignInThrownError
@@ -15,6 +16,7 @@ export function WebuddyLoginScreen({ onSignedIn }: { onSignedIn: () => void }): 
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const signIn = useAppStore((state) => state.signInCurrentOrcaProfile)
 
   const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
@@ -24,7 +26,7 @@ export function WebuddyLoginScreen({ onSignedIn }: { onSignedIn: () => void }): 
     setSubmitting(true)
     setError(null)
     try {
-      const result = await window.api.orcaProfiles.signIn({ username, password })
+      const result = await signIn({ username, password })
       const resultError = orcaProfileSignInResultError(result)
       if (resultError) {
         setError(resultError)

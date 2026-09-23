@@ -17,26 +17,53 @@ function gateStatusFor(auth: OrcaProfileAuthStatus): GateStatus {
   return 'locked'
 }
 
+function reloadRenderer(): void {
+  window.location.reload()
+}
+
 /** Keeps the workspace unmounted until the company account is signed in. */
-export function WebuddyAuthGate({ children }: { children: React.ReactNode }): React.JSX.Element {
+export function WebuddyAuthGate({
+  children,
+  reload = reloadRenderer
+}: {
+  children: React.ReactNode
+  /** Test seam for the open → locked reload. */
+  reload?: () => void
+}): React.JSX.Element {
   const [status, setStatus] = useState<GateStatus>('loading')
+  const statusRef = useRef<GateStatus>('loading')
   const checkSeq = useRef(0)
   const storeAuthState = useAppStore((state) => state.orcaProfileAuthStatus?.state)
+
+  const applyStatus = useCallback(
+    (next: GateStatus): void => {
+      if (statusRef.current === 'open' && next === 'locked') {
+        // Why: App's boot chain is one-shot and its beforeunload persists the session, so never
+        // unmount it; reload instead and let the cold start land on the login screen.
+        reload()
+        return
+      }
+      statusRef.current = next
+      setStatus(next)
+    },
+    [reload]
+  )
 
   const recheck = useCallback(async (): Promise<void> => {
     const seq = ++checkSeq.current
     try {
       const auth = await window.api.orcaProfiles.authStatus()
       if (seq === checkSeq.current) {
-        setStatus(gateStatusFor(auth))
+        applyStatus(gateStatusFor(auth))
       }
     } catch (error) {
       console.error('[webuddy] 读取登录状态失败:', error)
-      if (seq === checkSeq.current) {
-        setStatus('locked')
+      // Why: a transient IPC failure is not a sign-out; only an unopened gate falls back to locked.
+      if (seq === checkSeq.current && statusRef.current === 'loading') {
+        applyStatus('locked')
       }
     }
-  }, [])
+  }, [applyStatus])
 
   useEffect(() => {
     void recheck()
@@ -53,8 +80,8 @@ export function WebuddyAuthGate({ children }: { children: React.ReactNode }): Re
 
   const handleSignedIn = useCallback(() => {
     checkSeq.current += 1
-    setStatus('open')
-  }, [])
+    applyStatus('open')
+  }, [applyStatus])
 
   if (status === 'loading') {
     return <div className="h-screen w-screen bg-background" />

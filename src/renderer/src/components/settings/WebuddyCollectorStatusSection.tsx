@@ -3,6 +3,13 @@ import { translate } from '@/i18n/i18n'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
 import type { WebuddyCollectorStatus } from '../../../../shared/webuddy-collector'
 
+const UNAVAILABLE_STATUS: WebuddyCollectorStatus = {
+  linked: false,
+  userId: null,
+  lastPush: null,
+  pending: 0
+}
+
 function lastPushProblem(lastPush: WebuddyCollectorStatus['lastPush']): string | null {
   if (lastPush?.authRejected) {
     return translate('webuddyCollector.authRejected', '上报凭证已失效，请重新登录')
@@ -28,7 +35,12 @@ export function WebuddyCollectorStatusSection(): React.JSX.Element {
           setStatus(next)
         }
       })
-      .catch((error: unknown) => console.error('[webuddy] 读取上报状态失败:', error))
+      .catch((error: unknown) => {
+        console.error('[webuddy] 读取上报状态失败:', error)
+        if (!cancelled) {
+          setStatus(UNAVAILABLE_STATUS)
+        }
+      })
     return () => {
       cancelled = true
     }

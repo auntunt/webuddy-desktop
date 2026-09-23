@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   authStatus: vi.fn(),
   signIn: vi.fn(),
+  reload: vi.fn(),
   authListeners: new Set<() => void>()
 }))
 
@@ -18,8 +19,12 @@ vi.mock('@/i18n/i18n', () => ({
 vi.mock('@/store', async () => {
   const { create } = await import('zustand')
   return {
-    useAppStore: create<{ orcaProfileAuthStatus: { state: string } | null }>(() => ({
-      orcaProfileAuthStatus: null
+    useAppStore: create<{
+      orcaProfileAuthStatus: { state: string } | null
+      signInCurrentOrcaProfile: (args: unknown) => Promise<unknown>
+    }>(() => ({
+      orcaProfileAuthStatus: null,
+      signInCurrentOrcaProfile: (args) => mocks.signIn(args)
     }))
   }
 })
@@ -43,7 +48,7 @@ function auth(state: OrcaProfileAuthState): OrcaProfileAuthStatus {
 
 function renderGate(): void {
   render(
-    <WebuddyAuthGate>
+    <WebuddyAuthGate reload={mocks.reload}>
       <div>workspace</div>
     </WebuddyAuthGate>
   )
@@ -60,6 +65,7 @@ describe('WebuddyAuthGate', () => {
   beforeEach(() => {
     mocks.authStatus.mockReset()
     mocks.signIn.mockReset()
+    mocks.reload.mockReset()
     mocks.authListeners.clear()
     useAppStore.setState({ orcaProfileAuthStatus: null })
     Object.defineProperty(window, 'api', {
@@ -67,7 +73,6 @@ describe('WebuddyAuthGate', () => {
       value: {
         orcaProfiles: {
           authStatus: mocks.authStatus,
-          signIn: mocks.signIn,
           onAuthStatusChanged: (cb: () => void) => {
             mocks.authListeners.add(cb)
             return () => mocks.authListeners.delete(cb)
@@ -113,7 +118,7 @@ describe('WebuddyAuthGate', () => {
     expect(screen.queryByText('workspace')).not.toBeInTheDocument()
   })
 
-  it('returns to the login screen when main reports the session was revoked', async () => {
+  it('reloads instead of unmounting the workspace when main revokes the session', async () => {
     mocks.authStatus.mockResolvedValue(auth('connected'))
     renderGate()
     expect(await screen.findByText('workspace')).toBeInTheDocument()
@@ -125,11 +130,12 @@ describe('WebuddyAuthGate', () => {
       }
     })
 
-    expect(await screen.findByText('登录 Webuddy')).toBeInTheDocument()
-    expect(screen.queryByText('workspace')).not.toBeInTheDocument()
+    await vi.waitFor(() => expect(mocks.reload).toHaveBeenCalledOnce())
+    expect(screen.getByText('workspace')).toBeInTheDocument()
+    expect(screen.queryByText('登录 Webuddy')).not.toBeInTheDocument()
   })
 
-  it('returns to the login screen after a sign-out from settings', async () => {
+  it('reloads after a sign-out from settings', async () => {
     mocks.authStatus.mockResolvedValue(auth('connected'))
     renderGate()
     expect(await screen.findByText('workspace')).toBeInTheDocument()
@@ -139,7 +145,19 @@ describe('WebuddyAuthGate', () => {
       useAppStore.setState({ orcaProfileAuthStatus: auth('local') })
     })
 
+    await vi.waitFor(() => expect(mocks.reload).toHaveBeenCalledOnce())
+    expect(screen.getByText('workspace')).toBeInTheDocument()
+  })
+
+  it('stays locked when the auth status cannot be read', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.authStatus.mockRejectedValue(new Error('ipc down'))
+    renderGate()
+
     expect(await screen.findByText('登录 Webuddy')).toBeInTheDocument()
+    expect(screen.queryByText('workspace')).not.toBeInTheDocument()
+    expect(mocks.reload).not.toHaveBeenCalled()
+    error.mockRestore()
   })
 
   it('lets the workspace through when this build has no sign-in endpoint', async () => {

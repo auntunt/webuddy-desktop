@@ -190,6 +190,15 @@ describe('OrcaAccountSettingsPane', () => {
     expect(await screen.findByText('上报凭证已失效，请重新登录')).toHaveClass('text-destructive')
   })
 
+  it('falls back to the not-started state when upload status cannot be read', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.collectorStatus.mockRejectedValue(new Error('ipc down'))
+    render(<OrcaAccountSettingsPane />)
+
+    expect(await screen.findByText('尚未开始上报')).toBeInTheDocument()
+    error.mockRestore()
+  })
+
   it('does not load upload status while signed out', () => {
     mocks.state.orcaProfileAuthStatus = { configured: true, state: 'local' }
     render(<OrcaAccountSettingsPane />)

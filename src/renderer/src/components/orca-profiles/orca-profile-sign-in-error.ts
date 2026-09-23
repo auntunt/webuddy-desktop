@@ -11,10 +11,7 @@ export function orcaProfileSignInResultError(
   if (result.status === 'failed') {
     return result.error
   }
-  return translate(
-    'auto.components.settings.orcaAccount.signInFailed',
-    'Sign-in did not complete. Try again.'
-  )
+  return translate('webuddyAuth.signInIncomplete', '登录未完成，请重试。')
 }
 
 /** Form-facing error for a sign-in IPC call that threw. */
