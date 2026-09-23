@@ -32,10 +32,15 @@ export function sessionCollectorEntryPath(resourcesPath: string): string {
  * the collector's config.json by `collector-credential.ts`, which runs before
  * each collection pass. A machine whose owner never signed in simply has no
  * endpoint or token there, and does not upload.
+ *
+ * Why WEBUDDY_TOKEN / WEBUDDY_USER_ID are stripped: the collector's env
+ * overrides config.json, so a stale value inherited from the launching
+ * process would keep uploading under the previous identity after sign-out.
  */
 export function sessionCollectorEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const { WEBUDDY_TOKEN: _token, WEBUDDY_USER_ID: _userId, ...rest } = base
   return {
-    ...base,
+    ...rest,
     // Why: the forked Electron binary must behave as plain Node, not boot an app.
     ELECTRON_RUN_AS_NODE: '1',
     ...(base.WEBUDDY_ENDPOINT ? { WEBUDDY_ENDPOINT: base.WEBUDDY_ENDPOINT } : {})
