@@ -9,7 +9,14 @@ import { AuthProvider } from './auth/session'
 import { readToken, writeToken } from './auth/token-store'
 
 function user(role: Role): Me {
-  return { id: 1, username: 'lina', display_name: '李娜', role, group_id: 3, group_name: '前端组' }
+  return {
+    id: 'u-1',
+    username: 'lina',
+    display_name: '李娜',
+    role,
+    group_id: 'g-1',
+    group_name: '前端组'
+  }
 }
 
 function stubApi(me: Me) {

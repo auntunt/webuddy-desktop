@@ -4,7 +4,9 @@ import type { Me, Role } from './api/types'
 import { useAuth } from './auth/session'
 import { AppShell } from './layout/AppShell'
 import { LoginPage } from './pages/LoginPage'
+import { OverviewPage } from './pages/OverviewPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { SessionDetailPage } from './pages/SessionDetailPage'
 
 function FullScreenMessage({ children }: { children: ReactNode }) {
   return (
@@ -44,8 +46,8 @@ export function AppRoutes() {
             {(me) => (
               <Routes>
                 <Route element={<AppShell me={me} />}>
-                  <Route index element={<PlaceholderPage title="总览" />} />
-                  <Route path="sessions/:key" element={<PlaceholderPage title="会话详情" />} />
+                  <Route index element={<OverviewPage me={me} />} />
+                  <Route path="sessions/:key" element={<SessionDetailPage />} />
                   <Route path="analysis" element={<PlaceholderPage title="分析" />} />
                   <Route path="skills" element={<PlaceholderPage title="Skills" />} />
                   <Route

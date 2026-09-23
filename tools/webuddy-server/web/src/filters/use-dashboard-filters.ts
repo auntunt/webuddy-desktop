@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
+import { toLocalIsoDate } from '../format/date-format'
 
 export type RangeKey = '7' | '30' | '90' | 'all'
 
@@ -48,6 +49,8 @@ export function applyFilterPatch(params: URLSearchParams, patch: FilterPatch): U
       next.delete(key)
     }
   }
+  // New filters mean a new result set; staying on page 7 of the old one would show nothing.
+  next.delete('offset')
   // A preset range and custom dates are two ways to say the same thing; the newest wins.
   if (patch.range) {
     next.delete('from')
@@ -56,11 +59,6 @@ export function applyFilterPatch(params: URLSearchParams, patch: FilterPatch): U
     next.delete('range')
   }
   return next
-}
-
-function localIsoDate(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 /** Query for read endpoints: `range` becomes `from` (N days including today, local time). */
@@ -75,7 +73,7 @@ export function toApiQuery(filters: DashboardFilters): Record<string, string> {
   if (filters.range && filters.range !== 'all') {
     const from = new Date()
     from.setDate(from.getDate() - (Number(filters.range) - 1))
-    query.from = localIsoDate(from)
+    query.from = toLocalIsoDate(from)
   }
   return query
 }

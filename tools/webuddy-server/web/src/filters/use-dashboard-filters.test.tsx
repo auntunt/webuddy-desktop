@@ -33,6 +33,12 @@ describe('useDashboardFilters', () => {
     expect(result.current.filters).toEqual({ user: 'lina' })
   })
 
+  it('resets the list page when a filter changes', () => {
+    const { result } = setup('/?agent=codex&offset=100')
+    act(() => result.current.setFilters({ agent: 'claude-code' }))
+    expect(new URLSearchParams(result.current.location.search).has('offset')).toBe(false)
+  })
+
   it('choosing a range clears custom dates', () => {
     const { result } = setup('/?from=2026-01-01&to=2026-02-01')
     act(() => result.current.setFilters({ range: '7' }))

@@ -1,11 +1,12 @@
 export type Role = 'admin' | 'lead' | 'member'
 
+// User and group ids are server-generated UUIDs (TEXT columns).
 export type Me = {
-  id: number
+  id: string
   username: string
   display_name: string | null
   role: Role
-  group_id: number | null
+  group_id: string | null
   group_name: string | null
 }
 
@@ -19,7 +20,7 @@ export type MeResponse = {
 }
 
 export type Group = {
-  id: number
+  id: string
   name: string
 }
 
