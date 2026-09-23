@@ -135,16 +135,22 @@ tools/webuddy-server/
 并接上已存在但未被调用的 `src/main/webuddy/auth.ts`。
 
 1. **登录**：桌面登录成功后，服务端在同一响应中额外签发**采集器 token**（有效期 90 天，
-   权限仅限 `/api/ingest`，存 `api_tokens`，`label = 'collector'`）。主进程通过 `auth.ts` 写入
+   权限仅限 `/api/ingest`，存 `api_tokens`，`label = 'collector:<deviceId>'`）。主进程通过 `auth.ts` 写入
    `config.json`（0600），同时写 `userId` 与 `endpoint`。采集器本身不改。
 2. **强制**：主进程判定未登录时，渲染层根部只渲染全屏登录页，不挂载工作区，无跳过入口。
-   登录页字段：用户名、密码、服务器地址（默认线上，可改为内网/测试）。
-3. **退出 / 换人**：退出时调用服务端吊销采集器 token，清空 `config.json` 中的凭证，回到登录页。
-   换人登录直接覆盖；服务端以 token 所属账号覆盖记录的 `actor.userId`（已有逻辑），不会串身份。
-4. **过期**：refresh token 失效 → 回到登录页。采集器上传收到 401 → 在 `config.json` 记录
-   `authError`，app 检测到后要求重新登录。
+   登录页字段：用户名、密码。**与本节设计的一处偏差**：登录页不提供服务器地址输入，沿用
+   `ORCA_CLOUD_API_URL` 环境变量（开发用）+ 打包内置线上地址（见实施计划 Global Constraints）。
+3. **退出 / 换人**：退出时调用服务端吊销该用户所有采集器 token 与所有 desktop refresh token，
+   清空 `config.json` 中的凭证，回到登录页。换人登录直接覆盖；服务端以 token 所属账号覆盖记录的
+   `actor.userId`（已有逻辑），不会串身份。因为 refresh token 是按用户吊销而非按设备，退出会在
+   ≤1h 内让该用户的其他已登录设备也收到 401 并回到登录页、清空各自的采集器凭证——"任一设备退出，
+   全部设备退出"，这是既有设计的既定行为，非本阶段引入的回归。
+4. **过期**：refresh token 失效 → 回到登录页，app 自动用 refresh token 重新换发 access token，
+   无需用户重新输入密码；仅当 refresh token 本身失效或被吊销才需要重新登录。采集器上传收到 401 →
+   在 `config.json` 记录 `authError`，主进程下次同步凭证时静默重签，不要求用户手动操作。
 5. **状态可见**：账号面板显示当前身份、小组、采集状态（上次上传、待上传条数、最近错误），
-   数据来自采集器 `status --json`。
+   数据来自主进程通过 IPC 读取的 `~/.webuddy-agent/last-push.json` 与 outbox 待上传计数，
+   不依赖采集器 `status --json` CLI 输出。
 6. **后台可见**：成员表"客户端最近在线"取该用户所有有效 token 的最大 `last_used_at`，
    区分"装了 app 但没用 agent"和"根本没开 app"。
 
