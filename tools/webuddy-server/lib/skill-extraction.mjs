@@ -179,7 +179,7 @@ function safeTags(raw) {
 
 export function listSkills(db, userId) {
   return db
-    .prepare(`SELECT id, user_id, title, summary, tags, evidence, model, source_sessions, created_at
+    .prepare(`SELECT id, user_id, title, summary, body, tags, evidence, model, source_sessions, created_at
               FROM skills WHERE user_id = ? ORDER BY id DESC`)
     .all(userId)
     .map((row) => ({ ...row, tags: safeTags(row.tags) }))

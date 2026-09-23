@@ -3,10 +3,12 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import type { Me, Role } from './api/types'
 import { useAuth } from './auth/session'
 import { AppShell } from './layout/AppShell'
+import { AnalysisPage } from './pages/AnalysisPage'
 import { LoginPage } from './pages/LoginPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { SessionDetailPage } from './pages/SessionDetailPage'
+import { SkillsPage } from './pages/SkillsPage'
 
 function FullScreenMessage({ children }: { children: ReactNode }) {
   return (
@@ -48,8 +50,8 @@ export function AppRoutes() {
                 <Route element={<AppShell me={me} />}>
                   <Route index element={<OverviewPage me={me} />} />
                   <Route path="sessions/:key" element={<SessionDetailPage />} />
-                  <Route path="analysis" element={<PlaceholderPage title="分析" />} />
-                  <Route path="skills" element={<PlaceholderPage title="Skills" />} />
+                  <Route path="analysis" element={<AnalysisPage me={me} />} />
+                  <Route path="skills" element={<SkillsPage me={me} />} />
                   <Route
                     path="admin/users"
                     element={
