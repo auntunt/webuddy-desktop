@@ -9,6 +9,11 @@ import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import { OrcaProfileSignOutConfirmDialog } from '../orca-profiles/OrcaProfileSignOutConfirmDialog'
+import {
+  orcaProfileSignInResultError,
+  orcaProfileSignInThrownError
+} from '../orca-profiles/orca-profile-sign-in-error'
+import { WebuddyCollectorStatusSection } from './WebuddyCollectorStatusSection'
 
 function accountStatusCopy(
   state: 'local' | 'unconfigured' | 'connected' | 'reconnect-required' | undefined,
@@ -96,23 +101,15 @@ export function OrcaAccountSettingsPane(): React.JSX.Element {
     setSignInError(null)
     try {
       const result = await signIn({ username, password })
-      if (result.status === 'failed') {
-        setSignInError(result.error)
-        return
-      }
-      if (result.status !== 'connected') {
-        setSignInError(
-          translate(
-            'auto.components.settings.orcaAccount.signInFailed',
-            'Sign-in did not complete. Try again.'
-          )
-        )
+      const error = orcaProfileSignInResultError(result)
+      if (error) {
+        setSignInError(error)
         return
       }
       // Why 成功才清密码：失败时保留输入，用户好改一个字符而不是整段重打。
       setPassword('')
     } catch (error) {
-      setSignInError(error instanceof Error ? error.message : String(error))
+      setSignInError(orcaProfileSignInThrownError(error))
     } finally {
       setSubmitting(false)
     }
@@ -196,6 +193,8 @@ export function OrcaAccountSettingsPane(): React.JSX.Element {
             </Button>
           </form>
         ) : null}
+
+        {connected ? <WebuddyCollectorStatusSection /> : null}
 
         <div className="space-y-4 border-t border-border/60 pt-5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">

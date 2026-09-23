@@ -23,6 +23,7 @@ import { translate } from './i18n/i18n'
 import { getOrCreateRendererRoot } from './lib/react-renderer-root'
 import { primeTerminalWebglAddon } from './lib/pane-manager/pane-webgl-renderer'
 import { SkillWarningPreviewLauncher } from './components/skills/SkillWarningPreviewLauncher'
+import { WebuddyAuthGate } from './components/webuddy-auth/WebuddyAuthGate'
 import { installBrowserClientPageRenderer } from './components/browser-pane/browser-client-page-renderer-installation'
 
 recordRendererCrashBreadcrumb('renderer_bootstrap_started', { dev: import.meta.env.DEV })
@@ -63,7 +64,9 @@ function RendererRoot(): React.JSX.Element {
         'The app shell could not finish rendering. Retry to remount it, or relaunch Webuddy if the error persists.'
       )}
     >
-      <App />
+      <WebuddyAuthGate>
+        <App />
+      </WebuddyAuthGate>
       <SkillWarningPreviewLauncher />
     </RecoverableRenderErrorBoundary>
   )

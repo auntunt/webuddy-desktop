@@ -24,12 +24,15 @@ const mocks = vi.hoisted(() => {
     signIn: vi.fn(),
     fetchAuthStatus: vi.fn(),
     signOut: vi.fn(),
+    collectorStatus: vi.fn(),
     state
   }
 })
 
 vi.mock('@/i18n/i18n', () => ({
-  translate: (_key: string, fallback: string) => fallback
+  translate: (_key: string, fallback: string, options?: Record<string, unknown>) =>
+    fallback.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options?.[name])),
+  getIntlLocale: () => 'en'
 }))
 
 vi.mock('@/store', () => ({
@@ -68,6 +71,17 @@ describe('OrcaAccountSettingsPane', () => {
     mocks.fetchAuthStatus.mockReset()
     mocks.signOut.mockReset()
     mocks.signOut.mockResolvedValue({ status: 'signed-out' })
+    mocks.collectorStatus.mockReset()
+    mocks.collectorStatus.mockResolvedValue({
+      linked: false,
+      userId: null,
+      lastPush: null,
+      pending: 0
+    })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: { webuddyCollector: { status: mocks.collectorStatus } }
+    })
     mocks.state.orcaProfileAuthStatus = {
       configured: true,
       state: 'connected',
@@ -136,5 +150,50 @@ describe('OrcaAccountSettingsPane', () => {
 
     expect(mocks.fetchAuthStatus).toHaveBeenCalledOnce()
     expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()
+  })
+
+  it('reports that usage upload has not started when the collector is unlinked', async () => {
+    render(<OrcaAccountSettingsPane />)
+
+    expect(await screen.findByText('尚未开始上报')).toBeInTheDocument()
+    expect(mocks.collectorStatus).toHaveBeenCalledOnce()
+  })
+
+  it('shows the last upload and the pending backlog', async () => {
+    mocks.collectorStatus.mockResolvedValue({
+      linked: true,
+      userId: 'u1',
+      lastPush: { at: new Date().toISOString(), pushed: 12, failed: 0, authRejected: false },
+      pending: 3
+    })
+    render(<OrcaAccountSettingsPane />)
+
+    expect(await screen.findByText(/上次上报：.*，成功 12 条/)).toBeInTheDocument()
+    expect(screen.getByText('待上报：3 条')).toBeInTheDocument()
+  })
+
+  it('flags a rejected upload credential as an error', async () => {
+    mocks.collectorStatus.mockResolvedValue({
+      linked: true,
+      userId: 'u1',
+      lastPush: {
+        at: new Date().toISOString(),
+        pushed: 0,
+        failed: 4,
+        authRejected: true,
+        error: 'HTTP 401'
+      },
+      pending: 4
+    })
+    render(<OrcaAccountSettingsPane />)
+
+    expect(await screen.findByText('上报凭证已失效，请重新登录')).toHaveClass('text-destructive')
+  })
+
+  it('does not load upload status while signed out', () => {
+    mocks.state.orcaProfileAuthStatus = { configured: true, state: 'local' }
+    render(<OrcaAccountSettingsPane />)
+
+    expect(mocks.collectorStatus).not.toHaveBeenCalled()
   })
 })
