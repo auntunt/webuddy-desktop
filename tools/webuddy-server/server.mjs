@@ -24,7 +24,7 @@ import {
   totals,
   countSessions
 } from './lib/queries.mjs'
-import { ensureBootstrapAdmin, resolveToken } from './lib/auth.mjs'
+import { ensureBootstrapAdmin, isRouteAllowedForToken, resolveToken } from './lib/auth.mjs'
 import { handleAuthRoute } from './lib/auth-routes.mjs'
 import { handleDesktopAuthRoute } from './lib/desktop-auth-routes.mjs'
 import { listTodos, syncTodos } from './lib/sync.mjs'
@@ -178,6 +178,10 @@ const server = createServer(async (req, res) => {
     }
 
     const auth = authenticate(req, url)
+    // 采集器 token 只认 /api/ingest：把闸放在最前面，/api/auth/*、/api/desktop/* 和数据接口都覆盖到。
+    if (auth && !isRouteAllowedForToken(auth, route)) {
+      return json(res, 401, { error: 'unauthorized' })
+    }
     if (await handleAuthRoute({ db, req, res, url, auth })) {
       return
     }

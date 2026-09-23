@@ -101,7 +101,38 @@ export function resolveToken(db, token) {
   if (!user || user.disabled) {
     return null
   }
-  return { user, tokenId: row.id }
+  return { user, tokenId: row.id, label: row.label ?? null }
+}
+
+const COLLECTOR_LABEL_PREFIX = 'collector:'
+const COLLECTOR_TTL_MS = 90 * 24 * 60 * 60 * 1000
+
+/** 每台设备一把；重签即作废同设备旧的，避免泄露的旧 token 继续可用。 */
+export function issueCollectorToken(db, { userId, deviceId }) {
+  const label = `${COLLECTOR_LABEL_PREFIX}${deviceId}`
+  db.prepare(
+    'UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND label = ? AND revoked_at IS NULL'
+  ).run(new Date().toISOString(), userId, label)
+  const { token, digest } = issueToken()
+  const expiresAt = Date.now() + COLLECTOR_TTL_MS
+  storeToken(db, { userId, label, digest, expiresAt: new Date(expiresAt).toISOString() })
+  return { token, expiresAt }
+}
+
+export function revokeCollectorTokensForUser(db, userId) {
+  return db
+    .prepare(
+      "UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND label LIKE 'collector:%' AND revoked_at IS NULL"
+    )
+    .run(new Date().toISOString(), userId).changes
+}
+
+/** 采集器 token 只用于上传：它常驻在磁盘上，泄露时不该能读任何人的正文。 */
+export function isRouteAllowedForToken(auth, route) {
+  if (typeof auth?.label === 'string' && auth.label.startsWith(COLLECTOR_LABEL_PREFIX)) {
+    return route === '/api/ingest'
+  }
+  return true
 }
 
 export function revokeToken(db, tokenId, userId) {

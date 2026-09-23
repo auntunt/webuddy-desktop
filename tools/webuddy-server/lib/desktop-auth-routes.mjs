@@ -20,9 +20,11 @@
 import {
   findUserById,
   findUserByUsername,
+  issueCollectorToken,
   issueRefreshToken,
   issueToken,
   resolveRefreshToken,
+  revokeCollectorTokensForUser,
   revokeRefreshToken,
   revokeRefreshTokensForUser,
   revokeToken,
@@ -184,8 +186,22 @@ export async function handleDesktopAuthRoute({ db, req, res, url, auth, relay })
     // 退出登录要一次收干净：只吊销 refresh token 的话，当前这把 access token
     // 还能继续用满 1 小时，那就不叫退出了。
     revokeRefreshTokensForUser(db, user.id)
+    revokeCollectorTokensForUser(db, user.id)
     revokeToken(db, auth.tokenId, user.id)
     return (json(res, 200, { ok: true }), true)
+  }
+
+  if (route === '/api/desktop/collector-token') {
+    const body = await readJson(req)
+    const deviceId = body.deviceId
+    if (typeof deviceId !== 'string' || !deviceId || deviceId.length > 128) {
+      return (json(res, 400, { error: 'deviceId required' }), true)
+    }
+    const issued = issueCollectorToken(db, { userId: user.id, deviceId })
+    return (
+      json(res, 200, { token: issued.token, userId: user.username, expiresAt: issued.expiresAt }),
+      true
+    )
   }
 
   if (route === '/api/desktop/relay-token') {
