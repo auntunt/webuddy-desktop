@@ -58,8 +58,9 @@ export function WebuddyAuthGate({
       }
     } catch (error) {
       console.error('[webuddy] 读取登录状态失败:', error)
-      // Why: a transient IPC failure is not a sign-out; only an unopened gate falls back to locked.
-      if (seq === checkSeq.current && statusRef.current === 'loading') {
+      // Why: rechecks while open only follow a sign-out signal, so on failure reload and let the
+      // cold start decide from main's status.
+      if (seq === checkSeq.current) {
         applyStatus('locked')
       }
     }

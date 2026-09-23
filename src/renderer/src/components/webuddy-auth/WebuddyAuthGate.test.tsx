@@ -149,6 +149,22 @@ describe('WebuddyAuthGate', () => {
     expect(screen.getByText('workspace')).toBeInTheDocument()
   })
 
+  it('reloads when a sign-out signal arrives but the auth status cannot be read', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.authStatus.mockResolvedValue(auth('connected'))
+    renderGate()
+    expect(await screen.findByText('workspace')).toBeInTheDocument()
+
+    mocks.authStatus.mockRejectedValue(new Error('ipc down'))
+    act(() => {
+      useAppStore.setState({ orcaProfileAuthStatus: auth('local') })
+    })
+
+    await vi.waitFor(() => expect(mocks.reload).toHaveBeenCalledOnce())
+    expect(screen.getByText('workspace')).toBeInTheDocument()
+    error.mockRestore()
+  })
+
   it('stays locked when the auth status cannot be read', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     mocks.authStatus.mockRejectedValue(new Error('ipc down'))
