@@ -180,6 +180,29 @@ test('/api/auth/me includes group_id and group_name', async () => {
   assert.equal(me.user.group_name, 'Me Group')
 })
 
+test('/api/auth/login also returns group_name, so it shows right after login', async () => {
+  const createRes = await api('root', '/api/admin/groups', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Login Group' })
+  })
+  const { group } = await createRes.json()
+  const usersRes = await api('root', '/api/admin/users')
+  const { users } = await usersRes.json()
+  const mem1 = users.find((u) => u.username === 'mem1')
+  await api('root', `/api/admin/users/${mem1.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ groupId: group.id })
+  })
+
+  const loginRes = await server.api(null, '/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username: 'mem1', password: 'password1' })
+  })
+  const { user } = await loginRes.json()
+  assert.equal(user.group_id, group.id)
+  assert.equal(user.group_name, 'Login Group')
+})
+
 test('last enabled admin cannot be demoted to lead', async () => {
   const usersRes = await api('root', '/api/admin/users')
   const { users } = await usersRes.json()

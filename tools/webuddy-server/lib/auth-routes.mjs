@@ -71,7 +71,8 @@ export async function handleAuthRoute({ db, req, res, url, auth }) {
       expiresAt: body.expiresAt ?? null
     })
     const user = db.prepare(`SELECT ${PUBLIC_USER_COLUMNS} FROM users WHERE id = ?`).get(row.id)
-    return (json(res, 200, { token, user }), true)
+    // Same shape as /api/auth/me, so the header shows the group right after login.
+    return (json(res, 200, { token, user: attachGroupName(db, user) }), true)
   }
 
   if (!auth) {
