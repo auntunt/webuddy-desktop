@@ -47,7 +47,8 @@ import {
   saveConfig,
   saveState,
   sha256File,
-  STATE_VERSION
+  STATE_VERSION,
+  writeJson
 } from './lib/state.mjs'
 
 const COLLECTOR_VERSION = '0.1.0'
@@ -318,12 +319,29 @@ async function main() {
 
   if (command === 'push') {
     const deviceId = await ensureDeviceId()
-    const result = await pushPending({
-      endpoint: config.endpoint,
-      token: config.token,
-      deviceId
-    })
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+    try {
+      const result = await pushPending({
+        endpoint: config.endpoint,
+        token: config.token,
+        deviceId
+      })
+      await writeJson(paths.lastPush, {
+        at: new Date().toISOString(),
+        authRejected: false,
+        ...result
+      })
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+    } catch (error) {
+      await writeJson(paths.lastPush, {
+        at: new Date().toISOString(),
+        pushed: 0,
+        failed: 0,
+        exhausted: 0,
+        authRejected: false,
+        error: String(error?.message ?? error)
+      })
+      throw error
+    }
     return
   }
 

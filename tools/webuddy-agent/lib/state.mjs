@@ -22,7 +22,8 @@ export const paths = {
   config: join(STATE_DIR, 'config.json'),
   device: join(STATE_DIR, 'device.json'),
   state: join(STATE_DIR, 'state.json'),
-  outbox: join(STATE_DIR, 'outbox')
+  outbox: join(STATE_DIR, 'outbox'),
+  lastPush: join(STATE_DIR, 'last-push.json')
 }
 
 export const DEFAULT_CONFIG = {

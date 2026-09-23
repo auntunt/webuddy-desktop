@@ -90,13 +90,19 @@ async function recordFailure(path, error) {
  */
 export async function pushPending({ endpoint, token, deviceId, fetchImpl = fetch }) {
   if (!endpoint) {
-    return { pushed: 0, failed: 0, skipped: 'no endpoint configured', exhausted: 0 }
+    return {
+      pushed: 0,
+      failed: 0,
+      skipped: 'no endpoint configured',
+      exhausted: 0,
+      authRejected: false
+    }
   }
   let names
   try {
     names = (await readdir(paths.outbox)).filter((name) => name.endsWith('.json'))
   } catch {
-    return { pushed: 0, failed: 0, skipped: 'empty outbox', exhausted: 0 }
+    return { pushed: 0, failed: 0, skipped: 'empty outbox', exhausted: 0, authRejected: false }
   }
 
   // Measure before packing: one 30 MB transcript must not ride along with 49 others.
@@ -129,6 +135,10 @@ export async function pushPending({ endpoint, token, deviceId, fetchImpl = fetch
         },
         body: JSON.stringify({ schemaVersion: 'webuddy.batch.v1', records: payloads })
       })
+      if (response.status === 401) {
+        // Why 立即停：凭证失效时继续重试只会把每条记录的重试次数耗到 exhausted。
+        return { pushed, failed, exhausted, authRejected: true }
+      }
       if (!response.ok) {
         throw new Error(`ingest returned ${response.status}`)
       }
@@ -147,5 +157,5 @@ export async function pushPending({ endpoint, token, deviceId, fetchImpl = fetch
       }
     }
   }
-  return { pushed, failed, exhausted }
+  return { pushed, failed, exhausted, authRejected: false }
 }

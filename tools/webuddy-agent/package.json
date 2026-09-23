@@ -7,6 +7,9 @@
     "webuddy-agent": "./index.mjs"
   },
   "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
   "dependencies": {},
   "engines": {
     "node": ">=20"
