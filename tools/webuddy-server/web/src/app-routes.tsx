@@ -3,10 +3,10 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import type { Me, Role } from './api/types'
 import { useAuth } from './auth/session'
 import { AppShell } from './layout/AppShell'
+import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AnalysisPage } from './pages/AnalysisPage'
 import { LoginPage } from './pages/LoginPage'
 import { OverviewPage } from './pages/OverviewPage'
-import { PlaceholderPage } from './pages/PlaceholderPage'
 import { SessionDetailPage } from './pages/SessionDetailPage'
 import { SkillsPage } from './pages/SkillsPage'
 
@@ -56,7 +56,7 @@ export function AppRoutes() {
                     path="admin/users"
                     element={
                       <RequireRole me={me} roles={['admin']}>
-                        <PlaceholderPage title="用户与小组" />
+                        <AdminUsersPage me={me} />
                       </RequireRole>
                     }
                   />
