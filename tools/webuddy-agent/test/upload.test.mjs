@@ -39,6 +39,29 @@ test('401 stops the push and reports authRejected without burning retries', asyn
   assert.equal(readdirSync(paths.outbox).filter((f) => f.endsWith('.attempts')).length, 0)
 })
 
+test('no token skips the push without calling fetch', async () => {
+  queue(2)
+  let calls = 0
+  const result = await pushPending({
+    endpoint: 'http://x/api/ingest',
+    token: '',
+    deviceId: 'd',
+    fetchImpl: async () => {
+      calls += 1
+      return new Response('{}', { status: 200 })
+    }
+  })
+  assert.equal(calls, 0)
+  assert.deepEqual(result, {
+    pushed: 0,
+    failed: 0,
+    exhausted: 0,
+    skipped: 'no token',
+    authRejected: false
+  })
+  assert.equal(readdirSync(paths.outbox).filter((f) => f.endsWith('.json')).length, 2)
+})
+
 test('successful push reports authRejected: false', async () => {
   queue(2)
   const result = await pushPending({

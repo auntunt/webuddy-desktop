@@ -98,6 +98,12 @@ export async function pushPending({ endpoint, token, deviceId, fetchImpl = fetch
       authRejected: false
     }
   }
+  // Why refuse rather than send unauthenticated: a signed-out machine has no
+  // token, and an ingest route that accepts anonymous batches would let it
+  // keep uploading under whatever identity the server defaults to.
+  if (!token) {
+    return { pushed: 0, failed: 0, exhausted: 0, skipped: 'no token', authRejected: false }
+  }
   let names
   try {
     names = (await readdir(paths.outbox)).filter((name) => name.endsWith('.json'))
