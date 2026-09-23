@@ -80,6 +80,13 @@ test('a missing asset under /assets/ is a 404, not the SPA shell', async () => {
   assert.equal(res.status, 404)
 })
 
+test('a top-level path with a known static extension but no matching file is a 404', async () => {
+  // No favicon.ico is built (only favicon.svg); a browser's default request must 404, not
+  // silently get the SPA shell in place of an icon.
+  const res = await fetch(`${server.baseUrl}/favicon.ico`)
+  assert.equal(res.status, 404)
+})
+
 test('path traversal never escapes publicDir', async () => {
   for (const path of [
     '/../server.mjs',

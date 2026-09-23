@@ -15,7 +15,8 @@ const TYPES = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.json': 'application/json; charset=utf-8',
-  '.map': 'application/json; charset=utf-8'
+  '.map': 'application/json; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8'
 }
 
 // Vite fingerprints everything under assets/, so the name changes whenever the content does.
@@ -57,9 +58,11 @@ async function tryFile(res, file, cacheControl) {
 }
 
 /**
- * Real file with a known type → served. Otherwise /assets/* → 404 (a missing chunk must
- * not get HTML), and everything else → index.html: client routes like
- * /sessions/<key> may contain dots, `::` or even `.claude/` segments.
+ * Real file with a known type → served. A route ending in a known static
+ * extension but missing on disk → 404 (a missing chunk, or a bookmarked
+ * /favicon.ico with none built, must not get HTML). Everything else →
+ * index.html: client routes like /sessions/<key> may contain dots, `::` or
+ * even `.claude/` segments, and their "extension" isn't a real static type.
  * Returns false when nothing was served, so the caller answers 404.
  */
 export async function serveStatic(req, res, route, publicDir) {
@@ -70,13 +73,12 @@ export async function serveStatic(req, res, route, publicDir) {
   const indexFile = resolve(root, 'index.html')
   // Rejected paths are never read; they can only be client routes.
   const file = route === '/' ? indexFile : resolveInside(root, route)
-  if (file && TYPES[extname(file).toLowerCase()]) {
+  const type = file && TYPES[extname(file).toLowerCase()]
+  if (file && type) {
     const hashed = file.startsWith(resolve(root, 'assets') + sep)
     if (await tryFile(res, file, hashed ? IMMUTABLE : 'no-cache')) {
       return true
     }
-  }
-  if (route.startsWith('/assets/')) {
     return false
   }
   return tryFile(res, indexFile, 'no-cache')
