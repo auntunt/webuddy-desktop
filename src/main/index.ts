@@ -14,6 +14,8 @@ import { installMainProcessQuitHandlers } from './startup/main-process-quit'
 import { shouldActivateDesktopForSecondInstance } from './startup/single-instance-lock'
 import { resolveOpenedMarkdownDocuments } from './startup/os-opened-markdown-files'
 import { startSessionCollection } from './webuddy/session-collector'
+import { clearCollectorCredential, syncCollectorCredential } from './webuddy/collector-credential'
+import { onOrcaCloudSessionInvalidated } from './orca-profiles/profile-cloud-session-invalidation'
 
 function openMainWindow(options: { revealOnDidFinishLoad?: boolean } = {}): BrowserWindow {
   return openMainWindowController(options)
@@ -115,6 +117,13 @@ if (preflightReady) {
     // Why after ready: starting the app is the trigger for collecting this
     // machine's agent sessions. Fire-and-forget — collection must never gate
     // window creation or app usability.
-    startSessionCollection()
+    startSessionCollection({
+      beforeRun: async () => {
+        await syncCollectorCredential()
+      }
+    })
+    // Why here and not attachMainWindowCoreServices: that runs once per window,
+    // and this listener must be registered exactly once per app process.
+    onOrcaCloudSessionInvalidated(() => void clearCollectorCredential())
   })
 }

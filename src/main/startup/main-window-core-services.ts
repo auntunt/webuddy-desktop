@@ -16,6 +16,7 @@ import { prepareCodexRuntimeHomeForLaunch } from './codex-launch-preparation'
 import { prepareCodexSessionResumeForLaunch } from './codex-session-resume-launch'
 import { isRecoveryReloadInFlight } from './main-window-lifecycle-flags'
 import { RELAY_HOST_CLOSE_REASON } from '../../shared/relay-host-close-reason'
+import { clearCollectorCredential, syncCollectorCredential } from '../webuddy/collector-credential'
 
 export function attachMainWindowCoreServices(
   window: BrowserWindow,
@@ -90,11 +91,16 @@ export function attachMainWindowCoreServices(
           store
         })
       },
-      onOrcaProfileAuthMutation: () => state.desktopRelayService?.authMutated(),
+      onOrcaProfileAuthMutation: () => {
+        state.desktopRelayService?.authMutated()
+        void syncCollectorCredential()
+      },
       // Sign-out is the one fence a paired phone can be told about; quit and
       // relaunch above stay reasonless so a restart never reads as signed out.
-      onBeforeOrcaProfileSignOut: () =>
+      onBeforeOrcaProfileSignOut: () => {
         state.desktopRelayService?.fenceAndCloseNow(RELAY_HOST_CLOSE_REASON.SIGNED_OUT)
+        void clearCollectorCredential()
+      }
     },
     state.pluginService ?? undefined,
     state.pluginMarketplaceService && state.pluginMarketplaceInstaller

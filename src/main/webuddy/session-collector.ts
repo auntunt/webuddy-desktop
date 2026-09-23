@@ -13,9 +13,6 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 
-/** Where collected sessions are uploaded. Overridable for staging. */
-export const DEFAULT_INGEST_ENDPOINT = 'https://webuddyserver.cloudwaveai.cn/api/ingest'
-
 const FIRST_RUN_DELAY_MS = 45_000
 const INTERVAL_MS = 30 * 60 * 1000
 const STEP_TIMEOUT_MS = 20 * 60 * 1000
@@ -31,18 +28,17 @@ export function sessionCollectorEntryPath(resourcesPath: string): string {
 /**
  * Env for the collector. Only non-secret defaults are injected here.
  *
- * Why there is no baked credential: uploads are authenticated per person, and
- * an env var outranks the collector's config file — so shipping a token in the
- * app would either override the owner's login or (once rotated) silently break
- * everyone. The credential comes from `webuddy-agent login`, and a machine that
- * has not logged in simply does not upload.
+ * Why no default endpoint: both the endpoint and the token are written into
+ * the collector's config.json by `collector-credential.ts`, which runs before
+ * each collection pass. A machine whose owner never signed in simply has no
+ * endpoint or token there, and does not upload.
  */
 export function sessionCollectorEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   return {
     ...base,
     // Why: the forked Electron binary must behave as plain Node, not boot an app.
     ELECTRON_RUN_AS_NODE: '1',
-    WEBUDDY_ENDPOINT: base.WEBUDDY_ENDPOINT || DEFAULT_INGEST_ENDPOINT
+    ...(base.WEBUDDY_ENDPOINT ? { WEBUDDY_ENDPOINT: base.WEBUDDY_ENDPOINT } : {})
   }
 }
 
@@ -83,6 +79,7 @@ export function startSessionCollection(
     env?: NodeJS.ProcessEnv
     intervalMs?: number
     firstRunDelayMs?: number
+    beforeRun?: () => Promise<void>
   } = {}
 ): void {
   if (timer || process.env.WEBUDDY_DISABLE_COLLECTION === '1') {
@@ -98,6 +95,7 @@ export function startSessionCollection(
     }
     inFlight = true
     try {
+      await options.beforeRun?.()
       await collectOnce(entry, env)
     } finally {
       inFlight = false
