@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import type { AdminGroup, AdminUser } from '../api/admin-types'
+import type { AdminGroup, AdminUser, UpdateUserPayload } from '../api/admin-types'
 import type { Role } from '../api/types'
 import { StatusLine } from '../components/QueryStatus'
 import { Button } from '../components/ui/Button'
@@ -36,6 +36,8 @@ export function UserDialog({ open, mode, user, meId, groups, onClose }: UserDial
   const [groupId, setGroupId] = useState('')
   const [disabled, setDisabled] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // Set only while asking "确定要停用…吗" — holds the diffed payload to send once confirmed.
+  const [pendingDisablePayload, setPendingDisablePayload] = useState<UpdateUserPayload | null>(null)
 
   useEffect(() => {
     if (!open) {
@@ -48,12 +50,37 @@ export function UserDialog({ open, mode, user, meId, groups, onClose }: UserDial
     setGroupId(mode === 'edit' ? (user?.group_id ?? '') : '')
     setDisabled(mode === 'edit' ? Boolean(user?.disabled) : false)
     setFormError(null)
+    setPendingDisablePayload(null)
   }, [open, mode, user])
 
   const createUser = useCreateUser()
   const updateUser = useUpdateUser(user?.id ?? '')
   const mutation = mode === 'create' ? createUser : updateUser
   const isSelf = mode === 'edit' && user?.id === meId
+
+  /** Only the fields that actually changed from what was loaded — PATCH sends a diff, not the whole form. */
+  function buildUpdatePayload(): UpdateUserPayload {
+    if (!user) {
+      return {}
+    }
+    const payload: UpdateUserPayload = {}
+    if (displayName.trim() !== (user.display_name ?? '')) {
+      payload.displayName = displayName.trim()
+    }
+    if (role !== user.role) {
+      payload.role = role
+    }
+    if (groupId !== (user.group_id ?? '')) {
+      payload.groupId = groupId || null
+    }
+    if (disabled !== Boolean(user.disabled)) {
+      payload.disabled = disabled
+    }
+    if (password) {
+      payload.password = password
+    }
+    return payload
+  }
 
   function submit() {
     setFormError(null)
@@ -82,24 +109,49 @@ export function UserDialog({ open, mode, user, meId, groups, onClose }: UserDial
       )
       return
     }
-    updateUser.mutate(
-      {
-        displayName: displayName.trim(),
-        role,
-        groupId: groupId || null,
-        disabled,
-        ...(password ? { password } : {})
-      },
-      { onSuccess: onClose }
-    )
+    const payload = buildUpdatePayload()
+    // Disabling someone locks them out immediately — ask before sending it.
+    if (payload.disabled === true) {
+      setPendingDisablePayload(payload)
+      return
+    }
+    updateUser.mutate(payload, { onSuccess: onClose })
   }
 
   const serverError = mutation.isError ? mutation.error.message : null
+  const targetName = user?.display_name || user?.username || ''
+
+  if (pendingDisablePayload) {
+    return (
+      <Dialog
+        open={open}
+        title="确认停用"
+        onClose={onClose}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPendingDisablePayload(null)}>
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              disabled={updateUser.isPending}
+              onClick={() => updateUser.mutate(pendingDisablePayload, { onSuccess: onClose })}
+            >
+              确认停用
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[12.5px] text-dim">确定要停用 {targetName} 吗？停用后无法登录和上传。</p>
+        {serverError && <StatusLine tone="bad">{serverError}</StatusLine>}
+      </Dialog>
+    )
+  }
 
   return (
     <Dialog
       open={open}
-      title={mode === 'create' ? '新建用户' : `编辑 ${user?.display_name || user?.username || ''}`}
+      title={mode === 'create' ? '新建用户' : `编辑 ${targetName}`}
       onClose={onClose}
       footer={
         <>

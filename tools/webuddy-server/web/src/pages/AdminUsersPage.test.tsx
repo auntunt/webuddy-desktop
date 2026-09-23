@@ -214,7 +214,7 @@ describe('AdminUsersPage', () => {
     expect(await within(dialog).findByText('至少要保留一个启用中的管理员')).toBeInTheDocument()
   })
 
-  it('shows a collector token with a device-hint label and revokes it', async () => {
+  it('shows a collector token with a device-hint label and revokes it only after confirming', async () => {
     apiFetchMock.mockImplementation(async (path, options) => {
       if (path === '/api/admin/tokens/t-2' && options?.method === 'DELETE') {
         return { revoked: true }
@@ -231,6 +231,13 @@ describe('AdminUsersPage', () => {
     const rows = within(dialog).getAllByRole('row')
     const collectorRow = rows.find((row) => row.textContent?.includes('采集器'))
     await ui.click(within(collectorRow as HTMLElement).getByRole('button', { name: '吊销' }))
+    // First click only asks for confirmation — no DELETE yet.
+    expect(await within(dialog).findByText(/采集器（设备 a1b2c3d4 前 8 位）/)).toBeInTheDocument()
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      '/api/admin/tokens/t-2',
+      expect.objectContaining({ method: 'DELETE' })
+    )
+    await ui.click(within(dialog).getByRole('button', { name: '确认吊销' }))
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/api/admin/tokens/t-2',
       expect.objectContaining({ method: 'DELETE' })
