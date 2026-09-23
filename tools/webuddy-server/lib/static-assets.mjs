@@ -60,10 +60,13 @@ async function tryFile(res, file, cacheControl) {
 /**
  * Real file with a known type → served. A route ending in a known static
  * extension but missing on disk → 404 (a missing chunk, or a bookmarked
- * /favicon.ico with none built, must not get HTML). Everything else →
- * index.html: client routes like /sessions/<key> may contain dots, `::` or
- * even `.claude/` segments, and their "extension" isn't a real static type.
- * Returns false when nothing was served, so the caller answers 404.
+ * /favicon.ico with none built, must not get HTML). Anything unresolved
+ * under /assets/ is also a 404, known extension or not — Vite only ever
+ * emits fingerprinted files there, so a miss is never a client route.
+ * Everything else → index.html: client routes like /sessions/<key> may
+ * contain dots, `::` or even `.claude/` segments, and their "extension"
+ * isn't a real static type. Returns false when nothing was served, so the
+ * caller answers 404.
  */
 export async function serveStatic(req, res, route, publicDir) {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -79,6 +82,9 @@ export async function serveStatic(req, res, route, publicDir) {
     if (await tryFile(res, file, hashed ? IMMUTABLE : 'no-cache')) {
       return true
     }
+    return false
+  }
+  if (route.startsWith('/assets/')) {
     return false
   }
   return tryFile(res, indexFile, 'no-cache')

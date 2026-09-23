@@ -87,6 +87,11 @@ test('a top-level path with a known static extension but no matching file is a 4
   assert.equal(res.status, 404)
 })
 
+test('a missing /assets/ file with an unrecognized extension is still a 404, not the SPA shell', async () => {
+  const res = await fetch(`${server.baseUrl}/assets/missing.wasm`)
+  assert.equal(res.status, 404)
+})
+
 test('path traversal never escapes publicDir', async () => {
   for (const path of [
     '/../server.mjs',
