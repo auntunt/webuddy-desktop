@@ -11827,7 +11827,10 @@
           "keywordSignIn": "sign in",
           "keywordSignOut": "sign out",
           "keywordRelay": "relay",
-          "keywordCloud": "cloud"
+          "keywordCloud": "cloud",
+          "usernameLabel": "Username",
+          "passwordLabel": "Password",
+          "signingIn": "Signing in…"
         },
         "automations": {
           "showButton": "Show Automations Button",
@@ -18065,5 +18068,22 @@
   },
   "common": {
     "retry": "Retry"
+  },
+  "webuddyAuth": {
+    "signInIncomplete": "登录未完成，请重试。",
+    "title": "登录 Webuddy",
+    "description": "使用公司账号登录。登录后会自动上报本机 AI coding 使用记录。",
+    "usernameLabel": "用户名",
+    "passwordLabel": "密码",
+    "signingIn": "登录中…",
+    "signIn": "登录"
+  },
+  "webuddyCollector": {
+    "authRejected": "上报凭证已失效，请重新登录",
+    "lastPushError": "上次上报失败：{{error}}",
+    "title": "使用数据上报",
+    "notStarted": "尚未开始上报",
+    "lastPush": "上次上报：{{when}}，成功 {{total}} 条",
+    "pending": "待上报：{{total}} 条"
   }
 }
