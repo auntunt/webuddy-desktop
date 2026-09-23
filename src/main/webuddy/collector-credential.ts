@@ -1,5 +1,8 @@
 /** Keeps ~/.webuddy-agent/config.json holding the signed-in person's upload token. */
 
+import { rm } from 'node:fs/promises'
+import { join } from 'node:path'
+
 import { ensureActiveOrcaProfile } from '../orca-profiles/profile-index-store'
 import { getOrcaCloudAuthConfig } from '../orca-profiles/profile-cloud-auth-config'
 import { OrcaCloudRequestError } from '../orca-profiles/profile-cloud-client'
@@ -7,6 +10,7 @@ import { runWithFreshOrcaCloudSession } from '../orca-profiles/profile-cloud-ses
 import { getProfileUserDataPath } from '../orca-profiles/profile-storage-paths'
 import {
   collectorConfigPath,
+  collectorStateDir,
   ensureCollectorDeviceId,
   readCollectorConfig,
   readLastPush,
@@ -48,6 +52,9 @@ export async function clearCollectorCredential(
       delete config[key]
     }
     await writeCollectorConfig(path, config)
+    // Why: last-push.json reports the previous person's upload status; left in
+    // place, the next person to sign in on this machine would see it briefly.
+    await rm(join(collectorStateDir(env), 'last-push.json'), { force: true })
   })
 }
 
@@ -104,13 +111,33 @@ const defaultSyncDeps: SyncCollectorCredentialDeps = {
   requestCollectorToken
 }
 
+// Why dedup: two concurrent syncs can both decide a reissue is needed, race
+// the server, and interleave their writes so the one that finishes last wins
+// even if its token is the one that gets revoked first. A second call made
+// while one is in flight rides the same result instead of starting its own.
+let inFlightSync: Promise<'issued' | 'unchanged' | 'cleared' | 'skipped'> | null = null
+
 /**
  * Keeps ~/.webuddy-agent/config.json holding the signed-in person's upload
  * token. Never throws: collection must not break the app.
  */
-export async function syncCollectorCredential(
+export function syncCollectorCredential(
   env: NodeJS.ProcessEnv = process.env,
   deps: SyncCollectorCredentialDeps = defaultSyncDeps
+): Promise<'issued' | 'unchanged' | 'cleared' | 'skipped'> {
+  if (inFlightSync) {
+    return inFlightSync
+  }
+  const run = syncCollectorCredentialImpl(env, deps).finally(() => {
+    inFlightSync = null
+  })
+  inFlightSync = run
+  return run
+}
+
+async function syncCollectorCredentialImpl(
+  env: NodeJS.ProcessEnv,
+  deps: SyncCollectorCredentialDeps
 ): Promise<'issued' | 'unchanged' | 'cleared' | 'skipped'> {
   try {
     const configState = deps.getOrcaCloudAuthConfig()

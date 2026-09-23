@@ -6,7 +6,13 @@ import type { LastPush } from './collector-config'
 export const RENEW_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 /** Config keys that hold credential state; cleared together on sign-out. */
-export const CREDENTIAL_KEYS = ['token', 'userId', 'tokenExpiresAt', 'tokenIssuedAt'] as const
+export const CREDENTIAL_KEYS = [
+  'token',
+  'userId',
+  'tokenExpiresAt',
+  'tokenIssuedAt',
+  'endpoint'
+] as const
 
 export function needsCollectorReissue(input: {
   now: number

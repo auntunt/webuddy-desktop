@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -94,12 +94,29 @@ describe('collector config files', () => {
     const env = { WEBUDDY_AGENT_HOME: home }
     await writeFile(
       join(home, 'config.json'),
-      JSON.stringify({ token: 't', userId: 'u', tokenExpiresAt: 1, deviceLabel: 'mac' })
+      JSON.stringify({
+        token: 't',
+        userId: 'u',
+        tokenExpiresAt: 1,
+        endpoint: 'https://cloud.example.test/api/ingest',
+        deviceLabel: 'mac'
+      })
     )
     await clearCollectorCredential(env)
     expect(JSON.parse(await readFile(join(home, 'config.json'), 'utf8'))).toEqual({
       deviceLabel: 'mac'
     })
+  })
+  it('clear deletes last-push.json so the next user does not see the prior status', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'wbc-'))
+    const env = { WEBUDDY_AGENT_HOME: home }
+    await writeFile(join(home, 'config.json'), JSON.stringify({ token: 't', userId: 'u' }))
+    await writeFile(
+      join(home, 'last-push.json'),
+      JSON.stringify({ at: new Date().toISOString(), pushed: 1, failed: 0, exhausted: 0 })
+    )
+    await clearCollectorCredential(env)
+    await expect(access(join(home, 'last-push.json'))).rejects.toThrow()
   })
   it('clear does not touch the file when there is nothing to remove', async () => {
     const home = await mkdtemp(join(tmpdir(), 'wbc-'))
@@ -268,5 +285,24 @@ describe('syncCollectorCredential', () => {
     expect(outcome).toBe('skipped')
     const config = JSON.parse(await readFile(join(home, 'config.json'), 'utf8'))
     expect(config).toEqual({ deviceLabel: 'mac' })
+  })
+
+  it('two concurrent calls share one in-flight sync (single token request)', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'wbc-'))
+    const env = { WEBUDDY_AGENT_HOME: home }
+    let requestCalls = 0
+    const deps = baseDeps({
+      requestCollectorToken: async () => {
+        requestCalls += 1
+        return { token: 'wb_new', userId: 'lina', expiresAt: now + 60 * DAY }
+      }
+    })
+    const [a, b] = await Promise.all([
+      syncCollectorCredential(env, deps),
+      syncCollectorCredential(env, deps)
+    ])
+    expect(requestCalls).toBe(1)
+    expect(a).toBe('issued')
+    expect(b).toBe('issued')
   })
 })
