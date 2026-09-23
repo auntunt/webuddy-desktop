@@ -43,18 +43,22 @@ export function tokenDigest(token) {
 export const PUBLIC_USER_COLUMNS =
   'id, username, display_name, role, group_id, created_at, disabled'
 
-export function createUser(db, { username, password, displayName, role = 'member' }) {
+export function createUser(
+  db,
+  { username, password, displayName, role = 'member', groupId = null }
+) {
   const id = randomUUID()
   db.prepare(
-    `INSERT INTO users (id, username, display_name, role, password_hash, created_at, disabled)
-     VALUES (?, ?, ?, ?, ?, ?, 0)`
+    `INSERT INTO users (id, username, display_name, role, password_hash, created_at, disabled, group_id)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?)`
   ).run(
     id,
     username,
     displayName ?? username,
     role,
     hashPassword(password),
-    new Date().toISOString()
+    new Date().toISOString(),
+    groupId
   )
   return findUserById(db, id)
 }
@@ -214,10 +218,10 @@ export function revokeTokenAsAdmin(db, tokenId) {
  * Why `disabled` and not delete: session rows reference the username, and
  * deleting the account would orphan a developer's whole history.
  */
-export function updateUser(db, id, { role, disabled, displayName, password } = {}) {
+export function updateUser(db, id, { role, disabled, displayName, password, groupId } = {}) {
   const fields = []
   const params = []
-  if (role === 'admin' || role === 'member') {
+  if (role === 'admin' || role === 'lead' || role === 'member') {
     fields.push('role = ?')
     params.push(role)
   }
@@ -232,6 +236,14 @@ export function updateUser(db, id, { role, disabled, displayName, password } = {
   if (typeof password === 'string' && password.length >= 8) {
     fields.push('password_hash = ?')
     params.push(hashPassword(password))
+  }
+  // groupId: undefined = unchanged, null = unassign, string = must be a real group.
+  if (groupId !== undefined) {
+    if (groupId !== null && !db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId)) {
+      throw new Error('小组不存在')
+    }
+    fields.push('group_id = ?')
+    params.push(groupId)
   }
   if (fields.length === 0) {
     return findUserById(db, id)

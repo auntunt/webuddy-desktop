@@ -84,10 +84,12 @@ export const GROUPABLE = {
 }
 
 export function groupBy(db, group, filters, limit = 50) {
-  const column = GROUPABLE[group]
-  if (!column) {
+  // Why Object.hasOwn: a plain lookup also matches inherited Object.prototype
+  // members (e.g. `by=toString`), which would smuggle a function into the SQL.
+  if (!Object.hasOwn(GROUPABLE, group)) {
     throw new Error(`unknown group: ${group}`)
   }
+  const column = GROUPABLE[group]
   const { sql, params } = buildWhere(filters)
   // Why 按天要按日期排：时间序列按"会话数"排出来是乱的，看不出节奏。
   // 其余维度是量的排行，才用 sessions DESC。

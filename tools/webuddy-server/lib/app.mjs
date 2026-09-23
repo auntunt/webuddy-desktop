@@ -20,6 +20,7 @@ import {
 } from './queries.mjs'
 import { isRouteAllowedForToken } from './auth.mjs'
 import { handleAuthRoute } from './auth-routes.mjs'
+import { handleGroupRoutes } from './group-routes.mjs'
 import { handleDesktopAuthRoute } from './desktop-auth-routes.mjs'
 import { listTodos, syncTodos } from './sync.mjs'
 import { workSummary } from './insights.mjs'
@@ -80,6 +81,9 @@ export function createRequestHandler({ db, relay, publicDir }) {
           error: 'unauthorized',
           hint: '先 POST /api/auth/login 拿 token，再带 Authorization: Bearer <token>'
         })
+      }
+      if (await handleGroupRoutes({ db, req, res, url, auth })) {
+        return
       }
 
       if (req.method === 'POST' && route === '/api/ingest') {

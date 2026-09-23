@@ -83,6 +83,28 @@ test('insights and stats respect scope', async () => {
   assert.equal((await getJson('lead1', '/api/stats')).body.totals.sessions, 2)
 })
 
+test('/api/stats: by= is the dimension, group= is the group filter', async () => {
+  // legacy: `group=person` still means "dimension = person" when it isn't a group id
+  const legacy = await getJson('root', '/api/stats?group=person')
+  assert.equal(legacy.status, 200)
+  assert.ok(legacy.body.groups.every((g) => typeof g.key === 'string'))
+
+  // by=person&group=<A> as admin filters totals/groups to group A
+  const scoped = await getJson('root', '/api/stats?by=person&group=gA')
+  assert.equal(scoped.status, 200)
+  assert.deepEqual(scoped.body.groups.map((g) => g.key).sort(), ['a1', 'lead1'])
+
+  // lead filtering by a group they cannot see yields zero sessions, not an error
+  const leadOtherGroup = await getJson('lead1', '/api/stats?by=person&group=gB')
+  assert.equal(leadOtherGroup.status, 200)
+  assert.equal(leadOtherGroup.body.totals.sessions, 0)
+  assert.deepEqual(leadOtherGroup.body.groups, [])
+
+  // guarded dimension lookup: prototype properties must not leak through
+  const bad = await getJson('root', '/api/stats?by=toString')
+  assert.equal(bad.status, 400)
+})
+
 test('analysis rollups respect scope', async () => {
   const users = new Set(
     (await getJson('lead1', '/api/analysis')).body.rollups.map((r) => r.user_id)

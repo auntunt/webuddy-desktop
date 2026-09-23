@@ -78,8 +78,8 @@ export async function startTestServer(opts = {}) {
   const { port } = server.address()
   const baseUrl = `http://127.0.0.1:${port}`
 
-  function createUser({ username, password = DEFAULT_PASSWORD, role = 'member' } = {}) {
-    return createUserRow(db, { username, password, role })
+  function createUser({ username, password = DEFAULT_PASSWORD, role = 'member', groupId } = {}) {
+    return createUserRow(db, { username, password, role, groupId })
   }
 
   async function login(username, password = DEFAULT_PASSWORD) {

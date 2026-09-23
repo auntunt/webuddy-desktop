@@ -18,6 +18,7 @@ import {
   verifyPassword,
   PUBLIC_USER_COLUMNS
 } from './auth.mjs'
+import { attachGroupName } from './group-routes.mjs'
 
 const json = (res, code, body) => {
   const text = JSON.stringify(body)
@@ -48,7 +49,8 @@ async function readJson(req, limitBytes = 64 * 1024) {
 export async function handleAuthRoute({ db, req, res, url, auth }) {
   const route = url.pathname
   const isAuth = route.startsWith('/api/auth/')
-  const isAdmin = route.startsWith('/api/admin/')
+  // /api/admin/groups* is handled by group-routes.mjs, not here.
+  const isAdmin = route.startsWith('/api/admin/') && !route.startsWith('/api/admin/groups')
   if (!isAuth && !isAdmin) {
     return false
   }
@@ -77,7 +79,13 @@ export async function handleAuthRoute({ db, req, res, url, auth }) {
   }
 
   if (route === '/api/auth/me' && req.method === 'GET') {
-    return (json(res, 200, { user: auth.user, tokens: listTokens(db, auth.user.id) }), true)
+    return (
+      json(res, 200, {
+        user: attachGroupName(db, auth.user),
+        tokens: listTokens(db, auth.user.id)
+      }),
+      true
+    )
   }
 
   if (route === '/api/auth/tokens' && req.method === 'GET') {
@@ -113,10 +121,11 @@ export async function handleAuthRoute({ db, req, res, url, auth }) {
       const users = db
         .prepare(
           `SELECT u.id, u.username, u.display_name, u.role, u.created_at, u.disabled,
+                  u.group_id, g.name AS group_name,
                   (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.username) AS session_count,
                   (SELECT MAX(s.local_date) FROM sessions s WHERE s.user_id = u.username) AS last_active,
                   (SELECT COUNT(*) FROM api_tokens t WHERE t.user_id = u.id AND t.revoked_at IS NULL) AS token_count
-           FROM users u ORDER BY u.created_at`
+           FROM users u LEFT JOIN groups g ON g.id = u.group_id ORDER BY u.created_at`
         )
         .all()
       return (json(res, 200, { users }), true)
@@ -132,11 +141,17 @@ export async function handleAuthRoute({ db, req, res, url, auth }) {
       if (findUserByUsername(db, username)) {
         return (json(res, 409, { error: '用户名已存在' }), true)
       }
+      const groupId = body.groupId ?? null
+      if (groupId !== null && !db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId)) {
+        return (json(res, 400, { error: '小组不存在' }), true)
+      }
+      const role = ['admin', 'lead', 'member'].includes(body.role) ? body.role : 'member'
       const user = createUser(db, {
         username,
         password,
         displayName: body.displayName ?? username,
-        role: body.role === 'admin' ? 'admin' : 'member'
+        role,
+        groupId
       })
       return (json(res, 201, { user }), true)
     }
@@ -155,7 +170,7 @@ export async function handleAuthRoute({ db, req, res, url, auth }) {
           "SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND disabled = 0 AND id != ?"
         )
         .get(id).n
-      const demoting = body.role === 'member' || body.disabled === true
+      const demoting = body.role === 'lead' || body.role === 'member' || body.disabled === true
       if (target.role === 'admin' && demoting && adminsLeft === 0) {
         return (json(res, 400, { error: '至少要保留一个启用中的管理员' }), true)
       }
