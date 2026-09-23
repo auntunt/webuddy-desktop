@@ -65,7 +65,7 @@ export function MobilePairingConnectionOptions({
   relayMintRetrying?: boolean
 }): React.JSX.Element {
   const authStatus = useAppStore((state) => state.orcaProfileAuthStatus)
-  const connect = useAppStore((state) => state.connectCurrentOrcaProfile)
+  const openAccountSettings = useAppStore((state) => state.openOrcaAccountSettings)
   const [relayStatus, setRelayStatus] = useState<MobileRelayStatus>('offline')
   const [relayCellUrl, setRelayCellUrl] = useState<string | undefined>(undefined)
   const signedIn = authStatus?.state === 'connected'
@@ -227,7 +227,7 @@ export function MobilePairingConnectionOptions({
               className="shrink-0"
               onClick={() => {
                 onChange('automatic')
-                void connect()
+                openAccountSettings()
               }}
             >
               {reconnectRequired

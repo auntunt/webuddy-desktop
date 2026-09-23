@@ -48,7 +48,7 @@ export function UnexpectedSignoutCard(): React.JSX.Element | null {
   const persistedDismissedVersion = useAppStore((s) => s.dismissedUnexpectedSignoutVersion)
   const dismissedVersions = useAppStore((s) => s.unexpectedSignoutDismissedVersions)
   const dismissForVersion = useAppStore((s) => s.dismissUnexpectedSignoutCard)
-  const connect = useAppStore((s) => s.connectCurrentOrcaProfile)
+  const openAccountSettings = useAppStore((s) => s.openOrcaAccountSettings)
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [authRefreshReady, setAuthRefreshReady] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -246,7 +246,7 @@ export function UnexpectedSignoutCard(): React.JSX.Element | null {
               size="sm"
               className="flex-1"
               disabled={!canConnect}
-              onClick={() => void connect()}
+              onClick={openAccountSettings}
             >
               {translate('auto.components.UnexpectedSignoutCard.c5b3e8a17d', 'Sign in to Webuddy')}
             </Button>

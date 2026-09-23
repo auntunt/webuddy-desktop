@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { BookOpen, Check, CircleUserRound, Files, Smartphone } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useOrcaProfileAuthStatusRefresh } from '@/hooks/use-orca-profile-auth-status-refresh'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
@@ -60,10 +62,14 @@ function AccountBenefit({
 
 export function OrcaAccountSettingsPane(): React.JSX.Element {
   const authStatus = useAppStore((state) => state.orcaProfileAuthStatus)
-  const connect = useAppStore((state) => state.connectCurrentOrcaProfile)
+  const signIn = useAppStore((state) => state.signInCurrentOrcaProfile)
   const signOut = useAppStore((state) => state.signOutCurrentOrcaProfile)
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [signInError, setSignInError] = useState<string | null>(null)
   const connected = authStatus?.state === 'connected'
   const canConnect = authStatus?.configured === true
 
@@ -78,6 +84,37 @@ export function OrcaAccountSettingsPane(): React.JSX.Element {
     setSigningOut(false)
     if (result) {
       setSignOutOpen(false)
+    }
+  }
+
+  const submitSignIn = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault()
+    if (submitting || !username || !password) {
+      return
+    }
+    setSubmitting(true)
+    setSignInError(null)
+    try {
+      const result = await signIn({ username, password })
+      if (result.status === 'failed') {
+        setSignInError(result.error)
+        return
+      }
+      if (result.status !== 'connected') {
+        setSignInError(
+          translate(
+            'auto.components.settings.orcaAccount.signInFailed',
+            'Sign-in did not complete. Try again.'
+          )
+        )
+        return
+      }
+      // Why 成功才清密码：失败时保留输入，用户好改一个字符而不是整段重打。
+      setPassword('')
+    } catch (error) {
+      setSignInError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -115,14 +152,50 @@ export function OrcaAccountSettingsPane(): React.JSX.Element {
             >
               {translate('auto.components.settings.orcaAccount.signOut', 'Sign out')}
             </Button>
-          ) : (
-            <Button type="button" size="sm" disabled={!canConnect} onClick={() => void connect()}>
-              {authStatus?.state === 'reconnect-required'
-                ? translate('auto.components.settings.orcaAccount.signInAgain', 'Sign in again')
-                : translate('auto.components.settings.orcaAccount.signIn', 'Sign in to Webuddy')}
-            </Button>
-          )}
+          ) : null}
         </div>
+
+        {!connected && canConnect ? (
+          <form className="space-y-3 border-t border-border/60 pt-5" onSubmit={submitSignIn}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="webuddy-signin-username">
+                  {translate('auto.components.settings.orcaAccount.usernameLabel', 'Username')}
+                </Label>
+                <Input
+                  id="webuddy-signin-username"
+                  name="username"
+                  autoComplete="username"
+                  value={username}
+                  disabled={submitting}
+                  onChange={(event) => setUsername(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="webuddy-signin-password">
+                  {translate('auto.components.settings.orcaAccount.passwordLabel', 'Password')}
+                </Label>
+                <Input
+                  id="webuddy-signin-password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  disabled={submitting}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </div>
+            </div>
+            {signInError ? <p className="text-xs text-destructive">{signInError}</p> : null}
+            <Button type="submit" size="sm" disabled={submitting || !username || !password}>
+              {submitting
+                ? translate('auto.components.settings.orcaAccount.signingIn', 'Signing in…')
+                : authStatus?.state === 'reconnect-required'
+                  ? translate('auto.components.settings.orcaAccount.signInAgain', 'Sign in again')
+                  : translate('auto.components.settings.orcaAccount.signIn', 'Sign in to Webuddy')}
+            </Button>
+          </form>
+        ) : null}
 
         <div className="space-y-4 border-t border-border/60 pt-5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">

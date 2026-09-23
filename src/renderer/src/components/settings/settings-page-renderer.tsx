@@ -16,7 +16,8 @@ import {
   renderSessionHistorySettingsSection,
   renderAutomationsSettingsSection,
   renderGeneralSettingsSection,
-  renderIntegrationsSettingsSection
+  renderIntegrationsSettingsSection,
+  renderOrcaAccountSettingsSection
 } from './settings-setup-workflow-section-renderers'
 import {
   renderGitSettingsSection,
@@ -115,7 +116,8 @@ export function renderSettingsPage(context: SettingsRenderContext): React.JSX.El
                 {renderOrchestrationSettingsSection(context)}
                 {renderLinearSettingsSection(context)}
                 {renderDesktopCapabilitySettingsSections(context)}
-                {/* 以下板块依赖上游 ORCA 云服务（账号/分享/手机/引导），
+                {renderOrcaAccountSettingsSection(context)}
+                {/* 以下板块依赖上游 ORCA 云服务（分享/手机/引导），
                     我们的服务端没有对应实现，入口一律不渲染 —— 既占位置，
                     点进去也只会失败。 */}
                 {renderGeneralSettingsSection(context)}

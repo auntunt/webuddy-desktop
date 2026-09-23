@@ -18,7 +18,7 @@ export function ArtifactsSettingsPane({
 }): React.JSX.Element {
   const openArtifactsPage = useAppStore((state) => state.openArtifactsPage)
   const authStatus = useAppStore((state) => state.orcaProfileAuthStatus)
-  const connect = useAppStore((state) => state.connectCurrentOrcaProfile)
+  const openAccountSettings = useAppStore((state) => state.openOrcaAccountSettings)
   const signedIn = authStatus?.state === 'connected'
   // Why: the capability lives in the desktop host's store and is deliberately absent from the
   // settings.update allowlist, so a web client can only mirror it — never grant it.
@@ -131,7 +131,7 @@ export function ArtifactsSettingsPane({
             type="button"
             size="sm"
             disabled={authStatus?.configured !== true}
-            onClick={() => void connect()}
+            onClick={openAccountSettings}
           >
             {authStatus?.state === 'reconnect-required'
               ? translate('auto.components.settings.artifacts.signInAgain', 'Sign in again')

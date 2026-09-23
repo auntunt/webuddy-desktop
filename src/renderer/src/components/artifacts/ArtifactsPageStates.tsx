@@ -24,12 +24,10 @@ export function ArtifactsPageErrorBanner({
 export function ArtifactsPageAuthState({
   needsReconnect,
   configured,
-  onConnect,
   onOpenAccountSettings
 }: {
   needsReconnect: boolean
   configured: boolean
-  onConnect: () => void
   onOpenAccountSettings: () => void
 }): React.JSX.Element {
   return (
@@ -60,7 +58,7 @@ export function ArtifactsPageAuthState({
         </p>
       </div>
       {configured ? (
-        <Button size="sm" onClick={onConnect}>
+        <Button size="sm" onClick={onOpenAccountSettings}>
           {needsReconnect
             ? translate(
                 'auto.components.artifacts.ArtifactsPage.signInAgainAction',

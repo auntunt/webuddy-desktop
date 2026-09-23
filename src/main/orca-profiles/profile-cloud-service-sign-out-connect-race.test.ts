@@ -9,14 +9,19 @@ import type {
 } from '../../shared/orca-profiles'
 
 const {
-  beginOrcaCloudPkceFlowMock,
-  exchangeOrcaCloudAuthCodeMock,
   revokeOrcaCloudSessionMock,
+  signInOrcaCloudSessionMock,
+  OrcaCloudRequestErrorMock,
   safeStorageMock
 } = vi.hoisted(() => ({
-  beginOrcaCloudPkceFlowMock: vi.fn(),
-  exchangeOrcaCloudAuthCodeMock: vi.fn(),
   revokeOrcaCloudSessionMock: vi.fn(),
+  signInOrcaCloudSessionMock: vi.fn(),
+  OrcaCloudRequestErrorMock: class OrcaCloudRequestError extends Error {
+    constructor(public readonly statusCode: number) {
+      super(`orca_cloud_request_failed_${statusCode}`)
+      this.name = 'OrcaCloudRequestError'
+    }
+  },
   safeStorageMock: {
     decryptString: vi.fn((value: Buffer) => value.toString('utf-8')),
     encryptString: vi.fn((value: string) => Buffer.from(value, 'utf-8')),
@@ -31,22 +36,23 @@ vi.mock('electron', () => ({
   safeStorage: safeStorageMock
 }))
 
-vi.mock('./profile-cloud-pkce', () => ({
-  beginOrcaCloudPkceFlow: beginOrcaCloudPkceFlowMock
-}))
-
+// Why the mock exports its own error class: the service does
+// `instanceof OrcaCloudRequestError`, so both sides must resolve the same binding.
 vi.mock('./profile-cloud-client', () => ({
+  OrcaCloudRequestError: OrcaCloudRequestErrorMock,
   createOrcaCloudProfile: vi.fn(),
-  exchangeOrcaCloudAuthCode: exchangeOrcaCloudAuthCodeMock,
   revokeOrcaCloudSession: revokeOrcaCloudSessionMock,
-  selectOrcaCloudOrg: vi.fn()
+  selectOrcaCloudOrg: vi.fn(),
+  signInOrcaCloudSession: signInOrcaCloudSessionMock
 }))
 
 import {
-  connectCurrentOrcaProfile,
   getCurrentOrcaProfileAuthStatus,
+  signInCurrentOrcaProfile,
   signOutCurrentOrcaProfile
 } from './profile-cloud-service'
+
+const credentials = { username: 'nina', password: 'correct-horse' }
 
 const cloud: OrcaProfileCloudSummary = {
   cloudProfileId: 'cloud-profile-1',
@@ -68,9 +74,8 @@ const organizations: OrcaCloudOrgSummary[] = [{ orgId: 'org-1', name: 'Acme', ro
 describe('Orca cloud sign-out vs newer connect', () => {
   beforeEach(() => {
     userDataPath = mkdtempSync(join(tmpdir(), 'orca-cloud-sign-out-connect-'))
-    beginOrcaCloudPkceFlowMock.mockReset()
-    exchangeOrcaCloudAuthCodeMock.mockReset()
     revokeOrcaCloudSessionMock.mockReset()
+    signInOrcaCloudSessionMock.mockReset()
     safeStorageMock.decryptString.mockReset()
     safeStorageMock.encryptString.mockReset()
     safeStorageMock.isEncryptionAvailable.mockReset()
@@ -78,15 +83,7 @@ describe('Orca cloud sign-out vs newer connect', () => {
     safeStorageMock.encryptString.mockImplementation((value: string) => Buffer.from(value, 'utf-8'))
     safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
     vi.stubEnv('ORCA_CLOUD_API_URL', 'https://orca-cloud.example')
-    vi.stubEnv('ORCA_CLOUD_CLIENT_ID', 'desktop-client')
-    beginOrcaCloudPkceFlowMock.mockResolvedValue({
-      code: 'auth-code',
-      codeVerifier: 'code-verifier',
-      nonce: 'nonce',
-      redirectUri: 'http://127.0.0.1:4100/auth/callback',
-      state: 'state'
-    })
-    exchangeOrcaCloudAuthCodeMock.mockResolvedValue({
+    signInOrcaCloudSessionMock.mockResolvedValue({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       expiresAt: Date.now() + 3_600_000,
@@ -102,7 +99,7 @@ describe('Orca cloud sign-out vs newer connect', () => {
   })
 
   it('keeps a newer connect that finishes while sign-out is still revoking', async () => {
-    await expect(connectCurrentOrcaProfile(userDataPath)).resolves.toMatchObject({
+    await expect(signInCurrentOrcaProfile(userDataPath, credentials)).resolves.toMatchObject({
       status: 'connected'
     })
     let finishRevoke!: () => void
@@ -112,7 +109,7 @@ describe('Orca cloud sign-out vs newer connect', () => {
       })
     )
     const signingOut = signOutCurrentOrcaProfile(userDataPath)
-    exchangeOrcaCloudAuthCodeMock.mockResolvedValue({
+    signInOrcaCloudSessionMock.mockResolvedValue({
       accessToken: 'later-access',
       refreshToken: 'later-refresh',
       expiresAt: Date.now() + 3_600_000,
@@ -120,7 +117,7 @@ describe('Orca cloud sign-out vs newer connect', () => {
       organizations,
       capabilities
     })
-    await expect(connectCurrentOrcaProfile(userDataPath)).resolves.toMatchObject({
+    await expect(signInCurrentOrcaProfile(userDataPath, credentials)).resolves.toMatchObject({
       status: 'connected'
     })
     expect(getCurrentOrcaProfileAuthStatus(userDataPath).cloud?.email).toBe('ada@example.com')

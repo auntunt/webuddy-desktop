@@ -31,7 +31,7 @@ vi.mock('@/store', () => ({
   useAppStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({
       ...mocks.state,
-      connectCurrentOrcaProfile: mocks.connect,
+      openOrcaAccountSettings: mocks.connect,
       fetchOrcaProfileAuthStatus: mocks.fetchAuthStatus,
       openArtifactsPage: mocks.openArtifactsPage
     })

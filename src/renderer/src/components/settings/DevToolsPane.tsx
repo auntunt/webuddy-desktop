@@ -139,7 +139,7 @@ function showDeleteFailureToast(): void {
 // progress; this surfaces it (and its status) in dev when the env vars are set.
 function OrcaCloudDevSubsection(): React.JSX.Element {
   const authStatus = useAppStore((s) => s.orcaProfileAuthStatus)
-  const connect = useAppStore((s) => s.connectCurrentOrcaProfile)
+  const openAccountSettings = useAppStore((s) => s.openOrcaAccountSettings)
   const signOut = useAppStore((s) => s.signOutCurrentOrcaProfile)
   const refresh = useAppStore((s) => s.fetchOrcaProfileAuthStatus)
   const configured = authStatus?.configured === true
@@ -173,7 +173,7 @@ function OrcaCloudDevSubsection(): React.JSX.Element {
                 {translate('auto.components.settings.DevToolsPane.orcaCloudSignOut', 'Sign out')}
               </Button>
             ) : (
-              <Button type="button" variant="outline" size="sm" onClick={() => void connect()}>
+              <Button type="button" variant="outline" size="sm" onClick={openAccountSettings}>
                 {translate(
                   'auto.components.settings.DevToolsPane.orcaCloudConnect',
                   'Connect profile'

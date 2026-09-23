@@ -71,12 +71,14 @@ const connectedAuthStatus: OrcaProfileAuthStatus = {
   }
 }
 
+const credentials = { username: 'nina', password: 'correct-horse' }
+
 const orcaProfilesApi = {
   list: vi.fn(),
   authStatus: vi.fn(),
   createLocal: vi.fn(),
   createCloudLinked: vi.fn(),
-  connectCurrent: vi.fn(),
+  signIn: vi.fn(),
   refreshAuth: vi.fn(),
   signOutCurrent: vi.fn(),
   selectOrg: vi.fn(),
@@ -97,7 +99,7 @@ describe('orca profile auth actions slice', () => {
     })
   })
 
-  it('connects the current profile and stores returned cloud metadata', async () => {
+  it('signs in the current profile and stores returned cloud metadata', async () => {
     const connectedProfiles = [
       {
         ...listState.profiles[0],
@@ -111,16 +113,17 @@ describe('orca profile auth actions slice', () => {
       activeProfileId: 'local-default',
       profiles: connectedProfiles
     }
-    orcaProfilesApi.connectCurrent.mockResolvedValue(result)
+    orcaProfilesApi.signIn.mockResolvedValue(result)
     const store = createTestStore()
 
-    await expect(store.getState().connectCurrentOrcaProfile()).resolves.toEqual(result)
+    await expect(store.getState().signInCurrentOrcaProfile(credentials)).resolves.toEqual(result)
+    expect(orcaProfilesApi.signIn).toHaveBeenCalledWith(credentials)
     expect(store.getState().orcaProfileAuthStatus).toEqual(connectedAuthStatus)
     expect(store.getState().orcaProfiles).toEqual(connectedProfiles)
     expect(toastSuccessMock).toHaveBeenCalledOnce()
   })
 
-  it('starts a second sign-in while the first browser wait is still open', async () => {
+  it('keeps only the later of two overlapping sign-ins', async () => {
     const connectedProfiles = [
       {
         ...listState.profiles[0],
@@ -139,7 +142,7 @@ describe('orca profile auth actions slice', () => {
       auth: connectedAuthStatus
     }
     let finishFirst!: (value: ConnectCurrentOrcaProfileResult) => void
-    orcaProfilesApi.connectCurrent
+    orcaProfilesApi.signIn
       .mockReturnValueOnce(
         new Promise<ConnectCurrentOrcaProfileResult>((resolve) => {
           finishFirst = resolve
@@ -148,10 +151,10 @@ describe('orca profile auth actions slice', () => {
       .mockResolvedValueOnce(connected)
     const store = createTestStore()
 
-    const first = store.getState().connectCurrentOrcaProfile()
-    const second = store.getState().connectCurrentOrcaProfile()
+    const first = store.getState().signInCurrentOrcaProfile(credentials)
+    const second = store.getState().signInCurrentOrcaProfile(credentials)
 
-    expect(orcaProfilesApi.connectCurrent).toHaveBeenCalledTimes(2)
+    expect(orcaProfilesApi.signIn).toHaveBeenCalledTimes(2)
     await expect(second).resolves.toEqual(connected)
     expect(toastSuccessMock).toHaveBeenCalledOnce()
     finishFirst(cancelled)

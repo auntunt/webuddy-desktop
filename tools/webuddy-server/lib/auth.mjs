@@ -113,6 +113,61 @@ export function revokeToken(db, tokenId, userId) {
   return result.changes > 0
 }
 
+/**
+ * 桌面端的长期凭证。与 access token 同一套摘要策略，只是生命周期差两个数量级
+ * —— 所以它们不同表：清理过期 access token 时不该顺手把 30 天的刷新凭证抹掉。
+ */
+export function issueRefreshToken() {
+  const token = `wbdr_${randomBytes(32).toString('base64url')}`
+  return { token, digest: tokenDigest(token) }
+}
+
+export function storeRefreshToken(db, { userId, digest, expiresAt }) {
+  const id = randomUUID()
+  db.prepare(
+    `INSERT INTO desktop_refresh_tokens (id, user_id, token_digest, created_at, expires_at, revoked_at)
+     VALUES (?, ?, ?, ?, ?, NULL)`
+  ).run(id, userId, digest, new Date().toISOString(), expiresAt)
+  return id
+}
+
+/** 解析 refresh token；未知/已吊销/已过期/用户被禁用一律返回 null，调用方统一按 401 处理。 */
+export function resolveRefreshToken(db, token) {
+  if (!token) {
+    return null
+  }
+  const row = db
+    .prepare('SELECT * FROM desktop_refresh_tokens WHERE token_digest = ? AND revoked_at IS NULL')
+    .get(tokenDigest(token))
+  if (!row || (row.expires_at && Date.parse(row.expires_at) < Date.now())) {
+    return null
+  }
+  const user = findUserById(db, row.user_id)
+  if (!user || user.disabled) {
+    return null
+  }
+  return { row, user }
+}
+
+/** 轮换：一把 refresh token 只能换一次，换完立刻作废，重放会落到 401。 */
+export function revokeRefreshToken(db, token) {
+  const result = db
+    .prepare(
+      'UPDATE desktop_refresh_tokens SET revoked_at = ? WHERE token_digest = ? AND revoked_at IS NULL'
+    )
+    .run(new Date().toISOString(), tokenDigest(token))
+  return result.changes > 0
+}
+
+/** 退出登录时收回该用户所有在用的 refresh token。 */
+export function revokeRefreshTokensForUser(db, userId) {
+  return db
+    .prepare(
+      'UPDATE desktop_refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL'
+    )
+    .run(new Date().toISOString(), userId).changes
+}
+
 /** Admin-side revoke: any token, not just your own. */
 export function revokeTokenAsAdmin(db, tokenId) {
   const result = db

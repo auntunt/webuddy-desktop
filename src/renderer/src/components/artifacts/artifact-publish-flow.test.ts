@@ -4,12 +4,12 @@ import { publishArtifactFromSurface } from './artifact-publish-flow'
 
 const mocks = vi.hoisted(() => ({
   callRuntimeRpc: vi.fn(),
-  connect: vi.fn(),
+  openAccountSettings: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   state: {
     orcaProfileAuthStatus: { state: 'connected' } as { state: string } | null,
-    connectCurrentOrcaProfile: vi.fn()
+    openOrcaAccountSettings: vi.fn()
   }
 }))
 
@@ -40,18 +40,16 @@ const published = {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.state.orcaProfileAuthStatus = { state: 'connected' }
-  mocks.state.connectCurrentOrcaProfile = mocks.connect
+  mocks.state.openOrcaAccountSettings = mocks.openAccountSettings
 })
 
 describe('artifact publish flow', () => {
-  it('signs in before preparing and publishing the request', async () => {
-    mocks.state.orcaProfileAuthStatus = { state: 'local' }
-    mocks.connect.mockResolvedValue({ status: 'connected' })
+  it('publishes without preparing anything else when already signed in', async () => {
     mocks.callRuntimeRpc.mockResolvedValue({ status: 'ok', value: published })
     const createRequest = vi.fn().mockResolvedValue(request)
 
     await expect(publishArtifactFromSurface(createRequest)).resolves.toBe(published)
-    expect(mocks.connect).toHaveBeenCalledOnce()
+    expect(mocks.openAccountSettings).not.toHaveBeenCalled()
     expect(createRequest).toHaveBeenCalledOnce()
     expect(mocks.callRuntimeRpc).toHaveBeenCalledWith(
       { kind: 'local' },
@@ -60,31 +58,46 @@ describe('artifact publish flow', () => {
     )
   })
 
-  it('resumes with fresh content after reconnecting', async () => {
-    mocks.connect.mockResolvedValue({ status: 'connected' })
-    mocks.callRuntimeRpc
-      .mockResolvedValueOnce({ status: 'reconnect-required' })
-      .mockResolvedValueOnce({ status: 'ok', value: published })
-    const createRequest = vi
-      .fn()
-      .mockResolvedValueOnce(request)
-      .mockResolvedValueOnce({ ...request, content: '<h1>Fresh</h1>' })
-
-    await expect(publishArtifactFromSurface(createRequest)).resolves.toBe(published)
-    expect(mocks.connect).toHaveBeenCalledOnce()
-    expect(createRequest).toHaveBeenCalledTimes(2)
-    expect(mocks.callRuntimeRpc.mock.calls[1]?.[2]).toMatchObject({
-      content: '<h1>Fresh</h1>'
-    })
-  })
-
-  it('surfaces sign-in failures without preparing the file', async () => {
+  it('opens the sign-in form instead of publishing when signed out', async () => {
     mocks.state.orcaProfileAuthStatus = { state: 'local' }
-    mocks.connect.mockRejectedValue(new Error('login failed'))
     const createRequest = vi.fn().mockResolvedValue(request)
 
     await expect(publishArtifactFromSurface(createRequest)).resolves.toBeNull()
+    expect(mocks.openAccountSettings).toHaveBeenCalledOnce()
     expect(createRequest).not.toHaveBeenCalled()
+    expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
+  })
+
+  it('retries once, then asks for a fresh sign-in when the session is rejected twice', async () => {
+    mocks.callRuntimeRpc.mockResolvedValue({ status: 'reconnect-required' })
+    const createRequest = vi.fn().mockResolvedValue(request)
+
+    await expect(publishArtifactFromSurface(createRequest)).resolves.toBeNull()
+    expect(createRequest).toHaveBeenCalledTimes(2)
+    expect(mocks.callRuntimeRpc).toHaveBeenCalledTimes(2)
+    expect(mocks.toastError).toHaveBeenCalledWith('Sign in to Webuddy and try again.')
+  })
+
+  it('sends the user to the sign-in form when the session is gone mid-publish', async () => {
+    // Why the state flips inside the RPC: the auth broadcast lands while the
+    // publish is in flight, which is the only way to reach this branch.
+    mocks.callRuntimeRpc.mockImplementation(async () => {
+      mocks.state.orcaProfileAuthStatus = { state: 'reconnect-required' }
+      return { status: 'reconnect-required' }
+    })
+    const createRequest = vi.fn().mockResolvedValue(request)
+
+    await expect(publishArtifactFromSurface(createRequest)).resolves.toBeNull()
+    expect(createRequest).toHaveBeenCalledOnce()
+    expect(mocks.openAccountSettings).toHaveBeenCalledOnce()
+    expect(mocks.toastError).toHaveBeenCalledWith('Sign in to Webuddy and try again.')
+  })
+
+  it('surfaces a preparation failure without publishing', async () => {
+    const createRequest = vi.fn().mockRejectedValue(new Error('unreadable'))
+
+    await expect(publishArtifactFromSurface(createRequest)).resolves.toBeNull()
+    expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
     expect(mocks.toastError).toHaveBeenCalledWith('Could not share artifact', undefined)
   })
 

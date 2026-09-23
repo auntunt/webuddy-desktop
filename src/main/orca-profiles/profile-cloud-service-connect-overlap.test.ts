@@ -7,16 +7,22 @@ import type {
   OrcaCloudOrgSummary,
   OrcaProfileCloudSummary
 } from '../../shared/orca-profiles'
+import type { OrcaCloudSessionExchangeResponse } from './profile-cloud-session-exchange'
 
 const {
-  beginOrcaCloudPkceFlowMock,
-  exchangeOrcaCloudAuthCodeMock,
   revokeOrcaCloudSessionMock,
+  signInOrcaCloudSessionMock,
+  OrcaCloudRequestErrorMock,
   safeStorageMock
 } = vi.hoisted(() => ({
-  beginOrcaCloudPkceFlowMock: vi.fn(),
-  exchangeOrcaCloudAuthCodeMock: vi.fn(),
   revokeOrcaCloudSessionMock: vi.fn(),
+  signInOrcaCloudSessionMock: vi.fn(),
+  OrcaCloudRequestErrorMock: class OrcaCloudRequestError extends Error {
+    constructor(public readonly statusCode: number) {
+      super(`orca_cloud_request_failed_${statusCode}`)
+      this.name = 'OrcaCloudRequestError'
+    }
+  },
   safeStorageMock: {
     decryptString: vi.fn((value: Buffer) => value.toString('utf-8')),
     encryptString: vi.fn((value: string) => Buffer.from(value, 'utf-8')),
@@ -33,22 +39,23 @@ vi.mock('electron', () => ({
   safeStorage: safeStorageMock
 }))
 
-vi.mock('./profile-cloud-pkce', () => ({
-  beginOrcaCloudPkceFlow: beginOrcaCloudPkceFlowMock
-}))
-
+// Why the mock exports its own error class: the service does
+// `instanceof OrcaCloudRequestError`, so both sides must resolve the same binding.
 vi.mock('./profile-cloud-client', () => ({
+  OrcaCloudRequestError: OrcaCloudRequestErrorMock,
   createOrcaCloudProfile: vi.fn(),
-  exchangeOrcaCloudAuthCode: exchangeOrcaCloudAuthCodeMock,
   revokeOrcaCloudSession: revokeOrcaCloudSessionMock,
-  selectOrcaCloudOrg: vi.fn()
+  selectOrcaCloudOrg: vi.fn(),
+  signInOrcaCloudSession: signInOrcaCloudSessionMock
 }))
 
 import {
-  connectCurrentOrcaProfile,
   getCurrentOrcaProfileAuthStatus,
+  signInCurrentOrcaProfile,
   signOutCurrentOrcaProfile
 } from './profile-cloud-service'
+
+const credentials = { username: 'nina', password: 'correct-horse' }
 
 const earlierCloud: OrcaProfileCloudSummary = {
   cloudProfileId: 'cloud-profile-1',
@@ -72,13 +79,26 @@ const capabilities: OrcaCloudCapabilities = {
 
 const organizations: OrcaCloudOrgSummary[] = [{ orgId: 'org-1', name: 'Acme', role: 'Admin' }]
 
+function exchangeFor(cloud: OrcaProfileCloudSummary): OrcaCloudSessionExchangeResponse {
+  return {
+    accessToken: `${cloud.userId}-access`,
+    refreshToken: `${cloud.userId}-refresh`,
+    expiresAt: Date.now() + 3_600_000,
+    cloud,
+    organizations,
+    capabilities
+  }
+}
+
+const earlierSession = exchangeFor(earlierCloud)
+const laterSession = exchangeFor(laterCloud)
+
 describe('Orca cloud overlapping connect', () => {
   beforeEach(() => {
     userDataPath = mkdtempSync(join(tmpdir(), 'orca-cloud-connect-overlap-'))
-    beginOrcaCloudPkceFlowMock.mockReset()
-    exchangeOrcaCloudAuthCodeMock.mockReset()
     revokeOrcaCloudSessionMock.mockReset()
     revokeOrcaCloudSessionMock.mockResolvedValue(undefined)
+    signInOrcaCloudSessionMock.mockReset()
     safeStorageMock.decryptString.mockReset()
     safeStorageMock.encryptString.mockReset()
     safeStorageMock.isEncryptionAvailable.mockReset()
@@ -86,7 +106,6 @@ describe('Orca cloud overlapping connect', () => {
     safeStorageMock.encryptString.mockImplementation((value: string) => Buffer.from(value, 'utf-8'))
     safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
     vi.stubEnv('ORCA_CLOUD_API_URL', 'https://orca-cloud.example')
-    vi.stubEnv('ORCA_CLOUD_CLIENT_ID', 'desktop-client')
   })
 
   afterEach(() => {
@@ -94,198 +113,71 @@ describe('Orca cloud overlapping connect', () => {
     vi.unstubAllEnvs()
   })
 
-  it('does not let an earlier sign-in overwrite a later successful connect', async () => {
-    let finishFirst!: (value: {
-      code: string
-      codeVerifier: string
-      nonce: string
-      redirectUri: string
-      state: string
-    }) => void
-    beginOrcaCloudPkceFlowMock
+  it('does not let an earlier sign-in overwrite a later successful one', async () => {
+    let finishFirst!: (value: OrcaCloudSessionExchangeResponse) => void
+    signInOrcaCloudSessionMock
       .mockReturnValueOnce(
         new Promise((resolve) => {
           finishFirst = resolve
         })
       )
-      .mockResolvedValueOnce({
-        code: 'later-code',
-        codeVerifier: 'later-verifier',
-        nonce: 'later-nonce',
-        redirectUri: 'http://127.0.0.1:4101/auth/callback',
-        state: 'later-state'
-      })
-    exchangeOrcaCloudAuthCodeMock.mockImplementation(async (_config, args) => ({
-      accessToken: 'access-token',
-      refreshToken: 'refresh-token',
-      expiresAt: Date.now() + 3_600_000,
-      cloud: args.code === 'later-code' ? laterCloud : earlierCloud,
-      organizations,
-      capabilities
-    }))
+      .mockResolvedValueOnce(laterSession)
 
-    const first = connectCurrentOrcaProfile(userDataPath)
-    const later = connectCurrentOrcaProfile(userDataPath)
+    const first = signInCurrentOrcaProfile(userDataPath, credentials)
+    const later = signInCurrentOrcaProfile(userDataPath, credentials)
     await expect(later).resolves.toMatchObject({ status: 'connected' })
     expect(getCurrentOrcaProfileAuthStatus(userDataPath).cloud?.email).toBe('ada@example.com')
 
-    finishFirst({
-      code: 'earlier-code',
-      codeVerifier: 'earlier-verifier',
-      nonce: 'earlier-nonce',
-      redirectUri: 'http://127.0.0.1:4100/auth/callback',
-      state: 'earlier-state'
-    })
+    finishFirst(earlierSession)
     await expect(first).resolves.toMatchObject({ status: 'cancelled' })
-    expect(exchangeOrcaCloudAuthCodeMock).toHaveBeenCalledTimes(1)
-    expect(exchangeOrcaCloudAuthCodeMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ code: 'later-code' })
-    )
     expect(getCurrentOrcaProfileAuthStatus(userDataPath).cloud?.email).toBe('ada@example.com')
   })
 
-  it('discards an earlier token exchange that finishes after a later wait has linked', async () => {
-    type PkceCode = {
-      code: string
-      codeVerifier: string
-      nonce: string
-      redirectUri: string
-      state: string
-    }
-    let finishEarlierPkce!: (value: PkceCode) => void
-    let finishLaterPkce!: (value: PkceCode) => void
-    let finishEarlierExchange!: (value: {
-      accessToken: string
-      refreshToken: string
-      expiresAt: number
-      cloud: OrcaProfileCloudSummary
-      organizations: OrcaCloudOrgSummary[]
-      capabilities: OrcaCloudCapabilities
-    }) => void
-    let finishLaterExchange!: (value: {
-      accessToken: string
-      refreshToken: string
-      expiresAt: number
-      cloud: OrcaProfileCloudSummary
-      organizations: OrcaCloudOrgSummary[]
-      capabilities: OrcaCloudCapabilities
-    }) => void
-    beginOrcaCloudPkceFlowMock
+  it('discards an earlier sign-in that resolves after a later one has linked', async () => {
+    let finishEarlier!: (value: OrcaCloudSessionExchangeResponse) => void
+    let finishLater!: (value: OrcaCloudSessionExchangeResponse) => void
+    signInOrcaCloudSessionMock
       .mockReturnValueOnce(
         new Promise((resolve) => {
-          finishEarlierPkce = resolve
+          finishEarlier = resolve
         })
       )
       .mockReturnValueOnce(
         new Promise((resolve) => {
-          finishLaterPkce = resolve
+          finishLater = resolve
         })
       )
-    exchangeOrcaCloudAuthCodeMock.mockImplementation(
-      (_config, args) =>
-        new Promise((resolve) => {
-          if (args.code === 'later-code') {
-            finishLaterExchange = resolve
-          } else {
-            finishEarlierExchange = resolve
-          }
-        })
-    )
 
-    const earlier = connectCurrentOrcaProfile(userDataPath)
-    const later = connectCurrentOrcaProfile(userDataPath)
-    finishEarlierPkce({
-      code: 'earlier-code',
-      codeVerifier: 'earlier-verifier',
-      nonce: 'earlier-nonce',
-      redirectUri: 'http://127.0.0.1:4100/auth/callback',
-      state: 'earlier-state'
-    })
-    finishLaterPkce({
-      code: 'later-code',
-      codeVerifier: 'later-verifier',
-      nonce: 'later-nonce',
-      redirectUri: 'http://127.0.0.1:4101/auth/callback',
-      state: 'later-state'
-    })
-    await vi.waitFor(() => expect(exchangeOrcaCloudAuthCodeMock).toHaveBeenCalledTimes(2))
+    const earlier = signInCurrentOrcaProfile(userDataPath, credentials)
+    const later = signInCurrentOrcaProfile(userDataPath, credentials)
+    await vi.waitFor(() => expect(signInOrcaCloudSessionMock).toHaveBeenCalledTimes(2))
 
-    finishLaterExchange({
-      accessToken: 'later-access',
-      refreshToken: 'later-refresh',
-      expiresAt: Date.now() + 3_600_000,
-      cloud: laterCloud,
-      organizations,
-      capabilities
-    })
+    finishLater(laterSession)
     await expect(later).resolves.toMatchObject({ status: 'connected' })
     expect(getCurrentOrcaProfileAuthStatus(userDataPath).cloud?.email).toBe('ada@example.com')
 
-    finishEarlierExchange({
-      accessToken: 'earlier-access',
-      refreshToken: 'earlier-refresh',
-      expiresAt: Date.now() + 3_600_000,
-      cloud: earlierCloud,
-      organizations,
-      capabilities
-    })
+    finishEarlier(earlierSession)
     await expect(earlier).resolves.toMatchObject({ status: 'cancelled' })
     expect(getCurrentOrcaProfileAuthStatus(userDataPath).cloud?.email).toBe('ada@example.com')
   })
 
-  it('does not relink an in-flight later wait after sign-out', async () => {
-    type PkceCode = {
-      code: string
-      codeVerifier: string
-      nonce: string
-      redirectUri: string
-      state: string
-    }
-    let finishEarlierPkce!: (value: PkceCode) => void
-    let finishLaterPkce!: (value: PkceCode) => void
-    beginOrcaCloudPkceFlowMock
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          finishEarlierPkce = resolve
-        })
-      )
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          finishLaterPkce = resolve
-        })
-      )
-    exchangeOrcaCloudAuthCodeMock.mockImplementation(async (_config, args) => ({
-      accessToken: 'access-token',
-      refreshToken: 'refresh-token',
-      expiresAt: Date.now() + 3_600_000,
-      cloud: args.code === 'later-code' ? laterCloud : earlierCloud,
-      organizations,
-      capabilities
-    }))
+  it('does not relink an in-flight later sign-in after sign-out', async () => {
+    let finishLater!: (value: OrcaCloudSessionExchangeResponse) => void
+    signInOrcaCloudSessionMock.mockResolvedValueOnce(earlierSession).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishLater = resolve
+      })
+    )
 
-    const earlier = connectCurrentOrcaProfile(userDataPath)
-    const later = connectCurrentOrcaProfile(userDataPath)
-    finishEarlierPkce({
-      code: 'earlier-code',
-      codeVerifier: 'earlier-verifier',
-      nonce: 'earlier-nonce',
-      redirectUri: 'http://127.0.0.1:4100/auth/callback',
-      state: 'earlier-state'
-    })
+    const earlier = signInCurrentOrcaProfile(userDataPath, credentials)
+    const later = signInCurrentOrcaProfile(userDataPath, credentials)
     await expect(earlier).resolves.toMatchObject({ status: 'connected' })
     await expect(signOutCurrentOrcaProfile(userDataPath)).resolves.toMatchObject({
       status: 'signed-out'
     })
-    finishLaterPkce({
-      code: 'later-code',
-      codeVerifier: 'later-verifier',
-      nonce: 'later-nonce',
-      redirectUri: 'http://127.0.0.1:4101/auth/callback',
-      state: 'later-state'
-    })
+
+    finishLater(laterSession)
     await expect(later).resolves.toMatchObject({ status: 'cancelled' })
-    expect(exchangeOrcaCloudAuthCodeMock).toHaveBeenCalledTimes(1)
     expect(getCurrentOrcaProfileAuthStatus(userDataPath)).toMatchObject({ state: 'local' })
   })
 })

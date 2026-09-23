@@ -14,7 +14,7 @@ export function ShareSkillsSettingsPane(): React.JSX.Element {
   const settings = useAppStore((state) => state.settings)
   const updateSettings = useAppStore((state) => state.updateSettings)
   const authStatus = useAppStore((state) => state.orcaProfileAuthStatus)
-  const connect = useAppStore((state) => state.connectCurrentOrcaProfile)
+  const openAccountSettings = useAppStore((state) => state.openOrcaAccountSettings)
   const signedIn = authStatus?.state === 'connected'
   const isWebClient = isWebClientLocation()
   const agentSharingEnabled = settings?.agentSkillSharingEnabled === true
@@ -135,7 +135,7 @@ export function ShareSkillsSettingsPane(): React.JSX.Element {
               type="button"
               size="sm"
               disabled={authStatus?.configured !== true}
-              onClick={() => void connect()}
+              onClick={openAccountSettings}
             >
               {authStatus?.state === 'reconnect-required'
                 ? translate('auto.components.settings.shareSkills.signInAgain', 'Sign in again')

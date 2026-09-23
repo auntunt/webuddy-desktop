@@ -77,6 +77,20 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_tokens_user ON api_tokens(user_id);
 
+-- 桌面端的长期凭证。access token（api_tokens）只有 1 小时，刷新时用这里的
+-- refresh token 换新的；每次刷新轮换，旧的立刻置 revoked_at。
+-- Why 单独一张表而不是复用 api_tokens：两者的生命周期差两个数量级
+-- （1 小时 vs 30 天），混在一张表里会让「清理过期 token」的语义变得含糊。
+CREATE TABLE IF NOT EXISTS desktop_refresh_tokens (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL REFERENCES users(id),
+  token_digest TEXT NOT NULL UNIQUE,
+  created_at   TEXT NOT NULL,
+  expires_at   TEXT NOT NULL,
+  revoked_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_desktop_refresh_user ON desktop_refresh_tokens(user_id);
+
 -- 日历式待办。个人数据，跨设备同步。
 -- 逐条 rev 而不是整文件覆盖：两台机器改同一天不能互相清掉。
 -- conflict_of 标记被保留的"输家"版本，让人自己裁决，不静默丢弃。

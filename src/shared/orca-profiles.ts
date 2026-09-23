@@ -151,6 +151,11 @@ export type TransferOrcaProfileProjectResult =
       duplicateRepoId: string
     }
 
+export type OrcaProfileSignInArgs = {
+  username: string
+  password: string
+}
+
 export type ConnectCurrentOrcaProfileResult =
   | {
       status: 'connected'

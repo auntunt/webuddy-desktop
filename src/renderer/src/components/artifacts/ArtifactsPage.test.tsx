@@ -61,7 +61,7 @@ vi.mock('@/store', () => ({
 function storeState(): Record<string, unknown> {
   return {
     closeArtifactsPage: mocks.closePage,
-    connectCurrentOrcaProfile: mocks.connect,
+    openOrcaAccountSettings: mocks.connect,
     orcaProfileAuthStatus: mocks.authStatus,
     refreshCurrentOrcaProfileAuth: mocks.refreshAuth,
     settings: mocks.settings,

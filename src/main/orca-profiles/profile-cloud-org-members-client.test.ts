@@ -14,17 +14,14 @@ const fetchMock = vi.fn()
 
 const config: OrcaCloudAuthConfig = {
   apiBaseUrl: 'https://orca-cloud.example',
-  authorizeEndpoint: 'https://orca-cloud.example/v1/desktop/auth/authorize',
-  sessionEndpoint: 'https://orca-cloud.example/v1/desktop/auth/session',
-  refreshEndpoint: 'https://orca-cloud.example/v1/desktop/auth/refresh',
-  capabilitiesEndpoint: 'https://orca-cloud.example/v1/desktop/auth/capabilities',
-  profileEndpoint: 'https://orca-cloud.example/v1/desktop/auth/profile',
-  orgEndpoint: 'https://orca-cloud.example/v1/desktop/auth/org',
-  logoutEndpoint: 'https://orca-cloud.example/v1/desktop/auth/logout',
-  relayTokenEndpoint: 'https://orca-cloud.example/v1/desktop/auth/relay-token',
-  relayDirectorUrl: 'https://relay.example',
-  clientId: 'desktop-client',
-  scope: 'openid profile email offline_access'
+  sessionEndpoint: 'https://orca-cloud.example/api/desktop/session',
+  refreshEndpoint: 'https://orca-cloud.example/api/desktop/refresh',
+  capabilitiesEndpoint: 'https://orca-cloud.example/api/desktop/capabilities',
+  profileEndpoint: 'https://orca-cloud.example/api/desktop/profile',
+  orgEndpoint: 'https://orca-cloud.example/api/desktop/org',
+  logoutEndpoint: 'https://orca-cloud.example/api/desktop/logout',
+  relayTokenEndpoint: 'https://orca-cloud.example/api/desktop/relay-token',
+  relayDirectorUrl: 'https://relay.example'
 }
 
 const session: OrcaCloudSession = {

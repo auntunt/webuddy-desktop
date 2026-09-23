@@ -53,8 +53,10 @@ const connectedAuthStatus: OrcaProfileAuthStatus = {
   capabilities: { flags: { share: true }, refreshedAt: 4 }
 }
 
+const credentials = { username: 'nina', password: 'correct-horse' }
+
 const orcaProfilesApi = {
-  connectCurrent: vi.fn(),
+  signIn: vi.fn(),
   signOutCurrent: vi.fn()
 }
 
@@ -87,7 +89,7 @@ describe('orca profile overlapping connect actions', () => {
       profiles: [{ ...listState.profiles[0], kind: 'cloud-linked', cloud: laterCloud }]
     }
     let finishFirst!: (value: ConnectCurrentOrcaProfileResult) => void
-    orcaProfilesApi.connectCurrent
+    orcaProfilesApi.signIn
       .mockReturnValueOnce(
         new Promise<ConnectCurrentOrcaProfileResult>((resolve) => {
           finishFirst = resolve
@@ -96,8 +98,8 @@ describe('orca profile overlapping connect actions', () => {
       .mockResolvedValueOnce(laterConnected)
     const store = createTestStore()
 
-    const first = store.getState().connectCurrentOrcaProfile()
-    const second = store.getState().connectCurrentOrcaProfile()
+    const first = store.getState().signInCurrentOrcaProfile(credentials)
+    const second = store.getState().signInCurrentOrcaProfile(credentials)
     await expect(second).resolves.toEqual(laterConnected)
     finishFirst(earlierConnected)
     await expect(first).resolves.toEqual(earlierConnected)
@@ -142,7 +144,7 @@ describe('orca profile overlapping connect actions', () => {
       ]
     }
     let finishLater!: (value: ConnectCurrentOrcaProfileResult) => void
-    orcaProfilesApi.connectCurrent.mockResolvedValueOnce(earlierConnected).mockReturnValueOnce(
+    orcaProfilesApi.signIn.mockResolvedValueOnce(earlierConnected).mockReturnValueOnce(
       new Promise<ConnectCurrentOrcaProfileResult>((resolve) => {
         finishLater = resolve
       })
@@ -150,8 +152,8 @@ describe('orca profile overlapping connect actions', () => {
     orcaProfilesApi.signOutCurrent.mockResolvedValue(signedOut)
     const store = createTestStore()
 
-    const earlier = store.getState().connectCurrentOrcaProfile()
-    const later = store.getState().connectCurrentOrcaProfile()
+    const earlier = store.getState().signInCurrentOrcaProfile(credentials)
+    const later = store.getState().signInCurrentOrcaProfile(credentials)
     await expect(earlier).resolves.toEqual(earlierConnected)
     await expect(store.getState().signOutCurrentOrcaProfile()).resolves.toEqual(signedOut)
     finishLater(laterConnected)

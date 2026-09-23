@@ -12,7 +12,7 @@ import { MobilePairingConnectionOptions } from './MobilePairingConnectionOptions
 
 type MobileRelayStoreState = {
   orcaProfileAuthStatus: OrcaProfileAuthStatus | null
-  connectCurrentOrcaProfile: () => Promise<null>
+  openOrcaAccountSettings: () => Promise<null>
   fetchOrcaProfileAuthStatus: () => Promise<OrcaProfileAuthStatus | null>
 }
 
@@ -72,7 +72,7 @@ describe('MobilePairingConnectionOptions', () => {
         state: 'local',
         persistence: 'none'
       },
-      connectCurrentOrcaProfile: connect,
+      openOrcaAccountSettings: connect,
       fetchOrcaProfileAuthStatus: fetchAuthStatus
     }
   })
@@ -220,7 +220,7 @@ describe('MobilePairingConnectionOptions', () => {
         state: 'connected',
         persistence: 'encrypted'
       },
-      connectCurrentOrcaProfile: connect,
+      openOrcaAccountSettings: connect,
       fetchOrcaProfileAuthStatus: fetchAuthStatus
     }
     const onChange = vi.fn()

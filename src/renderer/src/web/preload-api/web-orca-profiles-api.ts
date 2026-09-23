@@ -44,7 +44,7 @@ export function createWebOrcaProfilesApi(): Partial<PreloadApi> {
           duplicateRepoId: args.repoId
         }),
       findProjectProfiles: async () => ({ projects: [] }),
-      connectCurrent: async () => ({
+      signIn: async () => ({
         status: 'unconfigured',
         auth: await webOrcaProfileAuthStatus()
       }),

@@ -4,6 +4,7 @@ import { translate } from '@/i18n/i18n'
 import type {
   ConnectCurrentOrcaProfileResult,
   CreateCloudLinkedOrcaProfileResult,
+  OrcaProfileSignInArgs,
   RefreshCurrentOrcaProfileAuthResult,
   SelectOrcaProfileOrgResult,
   SignOutCurrentOrcaProfileResult
@@ -15,7 +16,11 @@ export type OrcaProfilesAuthActions = {
     orgId?: string
     name?: string
   }) => Promise<CreateCloudLinkedOrcaProfileResult | null>
-  connectCurrentOrcaProfile: () => Promise<ConnectCurrentOrcaProfileResult | null>
+  signInCurrentOrcaProfile: (
+    credentials: OrcaProfileSignInArgs
+  ) => Promise<ConnectCurrentOrcaProfileResult>
+  /** Brings up the sign-in form; the CTA for every "Sign in" surface lands here. */
+  openOrcaAccountSettings: () => void
   refreshCurrentOrcaProfileAuth: () => Promise<RefreshCurrentOrcaProfileAuthResult | null>
   signOutCurrentOrcaProfile: () => Promise<SignOutCurrentOrcaProfileResult | null>
   selectOrcaProfileOrg: (orgId: string) => Promise<SelectOrcaProfileOrgResult | null>
@@ -76,69 +81,38 @@ export const createOrcaProfilesAuthActions: StateCreator<
       }
     },
 
-    connectCurrentOrcaProfile: async () => {
+    signInCurrentOrcaProfile: async (credentials) => {
       const attempt = ++nextConnectAttempt
-      try {
-        // Why: a pending browser callback must not block retry. Another click
-        // starts a second PKCE wait; an older wait is ignored after a newer
-        // one has already linked.
-        const result = await window.api.orcaProfiles.connectCurrent()
-        if (attempt < appliedConnectAttempt) {
-          return result
-        }
-        const alreadyConnected = get().orcaProfileAuthStatus?.state === 'connected'
-        set({
-          orcaProfileAuthStatus: result.auth,
-          ...(result.status === 'connected'
-            ? {
-                activeOrcaProfileId: result.activeProfileId,
-                orcaProfiles: result.profiles
-              }
-            : {})
-        })
-        if (result.status === 'connected') {
-          appliedConnectAttempt = attempt
-          if (!alreadyConnected) {
-            toast.success(
-              translate('auto.store.slices.orca.profiles.9fcb07a796', 'Profile connected')
-            )
-          }
-        } else if (result.status === 'unconfigured') {
-          toast.error(
-            translate(
-              'auto.store.slices.orca.profiles.8b8fa73174',
-              'Webuddy Cloud sign-in is not configured'
-            ),
-            {
-              description: result.auth.setupMessage
-            }
-          )
-        } else if (
-          result.status === 'failed' &&
-          !alreadyConnected &&
-          result.auth.state !== 'connected'
-        ) {
-          toast.error(
-            translate('auto.store.slices.orca.profiles.33290e88ed', 'Failed to connect profile'),
-            { description: result.error }
-          )
-        }
+      // Why 不在这里 catch：只有登录表单会调它，把失败就地显示在表单里比弹一个
+      // 说完就消失的 toast 有用；IPC 拒绝时由表单接住。
+      const result = await window.api.orcaProfiles.signIn(credentials)
+      if (attempt < appliedConnectAttempt) {
         return result
-      } catch (err) {
-        console.error('Failed to connect Webuddy profile:', err)
-        if (
-          attempt >= appliedConnectAttempt &&
-          get().orcaProfileAuthStatus?.state !== 'connected'
-        ) {
-          toast.error(
-            translate('auto.store.slices.orca.profiles.33290e88ed', 'Failed to connect profile'),
-            {
-              description: err instanceof Error ? err.message : String(err)
+      }
+      const alreadyConnected = get().orcaProfileAuthStatus?.state === 'connected'
+      set({
+        orcaProfileAuthStatus: result.auth,
+        ...(result.status === 'connected'
+          ? {
+              activeOrcaProfileId: result.activeProfileId,
+              orcaProfiles: result.profiles
             }
+          : {})
+      })
+      if (result.status === 'connected') {
+        appliedConnectAttempt = attempt
+        if (!alreadyConnected) {
+          toast.success(
+            translate('auto.store.slices.orca.profiles.9fcb07a796', 'Profile connected')
           )
         }
-        return null
       }
+      return result
+    },
+
+    openOrcaAccountSettings: () => {
+      get().openSettingsTarget({ pane: 'orca-account', repoId: null })
+      get().openSettingsPage()
     },
 
     refreshCurrentOrcaProfileAuth: async () => {

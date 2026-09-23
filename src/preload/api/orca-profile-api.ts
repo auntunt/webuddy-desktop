@@ -15,6 +15,7 @@ import type {
   OrcaProfileOrgMemberRemoveArgs,
   OrcaProfileOrgMembersListArgs,
   OrcaProfileOrgMembersListResult,
+  OrcaProfileSignInArgs,
   RefreshCurrentOrcaProfileAuthResult,
   SelectOrcaProfileOrgArgs,
   SelectOrcaProfileOrgResult,
@@ -41,7 +42,7 @@ export type OrcaProfileApi = {
   findProjectProfiles: (
     args: FindOrcaProfileProjectsByPathArgs
   ) => Promise<FindOrcaProfileProjectsByPathResult>
-  connectCurrent: () => Promise<ConnectCurrentOrcaProfileResult>
+  signIn: (args: OrcaProfileSignInArgs) => Promise<ConnectCurrentOrcaProfileResult>
   refreshAuth: () => Promise<RefreshCurrentOrcaProfileAuthResult>
   signOutCurrent: () => Promise<SignOutCurrentOrcaProfileResult>
   selectOrg: (args: SelectOrcaProfileOrgArgs) => Promise<SelectOrcaProfileOrgResult>

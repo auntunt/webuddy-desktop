@@ -10,17 +10,15 @@ import type {
 import type { OrcaCloudSessionExchangeResponse } from './profile-cloud-session-exchange'
 
 const {
-  beginOrcaCloudPkceFlowMock,
   createOrcaCloudProfileMock,
-  exchangeOrcaCloudAuthCodeMock,
+  signInOrcaCloudSessionMock,
   refreshOrcaCloudCapabilitiesMock,
   refreshOrcaCloudSessionMock,
   OrcaCloudRequestErrorMock,
   safeStorageMock
 } = vi.hoisted(() => ({
-  beginOrcaCloudPkceFlowMock: vi.fn(),
   createOrcaCloudProfileMock: vi.fn(),
-  exchangeOrcaCloudAuthCodeMock: vi.fn(),
+  signInOrcaCloudSessionMock: vi.fn(),
   refreshOrcaCloudCapabilitiesMock: vi.fn(),
   refreshOrcaCloudSessionMock: vi.fn(),
   OrcaCloudRequestErrorMock: class OrcaCloudRequestError extends Error {
@@ -45,27 +43,25 @@ vi.mock('electron', () => ({
   safeStorage: safeStorageMock
 }))
 
-vi.mock('./profile-cloud-pkce', () => ({
-  beginOrcaCloudPkceFlow: beginOrcaCloudPkceFlowMock
-}))
-
 vi.mock('./profile-cloud-client', () => ({
   OrcaCloudRequestError: OrcaCloudRequestErrorMock,
   isAmbiguousCloudRequestFailure: (error: unknown) => !(error instanceof OrcaCloudRequestErrorMock),
   createOrcaCloudProfile: createOrcaCloudProfileMock,
-  exchangeOrcaCloudAuthCode: exchangeOrcaCloudAuthCodeMock,
   refreshOrcaCloudCapabilities: refreshOrcaCloudCapabilitiesMock,
   refreshOrcaCloudSession: refreshOrcaCloudSessionMock,
   revokeOrcaCloudSession: vi.fn(),
-  selectOrcaCloudOrg: vi.fn()
+  selectOrcaCloudOrg: vi.fn(),
+  signInOrcaCloudSession: signInOrcaCloudSessionMock
 }))
 
 import {
-  connectCurrentOrcaProfile,
   createCloudLinkedOrcaProfile,
   getCurrentOrcaProfileAuthStatus,
-  refreshCurrentOrcaProfileAuth
+  refreshCurrentOrcaProfileAuth,
+  signInCurrentOrcaProfile
 } from './profile-cloud-service'
+
+const credentials = { username: 'nina', password: 'correct-horse' }
 
 const cloudSummary: OrcaProfileCloudSummary = {
   cloudProfileId: 'cloud-profile-1',
@@ -91,18 +87,10 @@ function futureExpiresAt(): number {
 
 function configureCloudEnv(): void {
   vi.stubEnv('ORCA_CLOUD_API_URL', 'https://orca-cloud.example')
-  vi.stubEnv('ORCA_CLOUD_CLIENT_ID', 'desktop-client')
 }
 
 function mockSuccessfulConnect(expiresAt = futureExpiresAt()): void {
-  beginOrcaCloudPkceFlowMock.mockResolvedValue({
-    code: 'auth-code',
-    codeVerifier: 'code-verifier',
-    nonce: 'nonce',
-    redirectUri: 'http://127.0.0.1:4100/auth/callback',
-    state: 'state'
-  })
-  exchangeOrcaCloudAuthCodeMock.mockResolvedValue({
+  signInOrcaCloudSessionMock.mockResolvedValue({
     accessToken: 'access-token',
     refreshToken: 'refresh-token',
     expiresAt,
@@ -115,9 +103,8 @@ function mockSuccessfulConnect(expiresAt = futureExpiresAt()): void {
 describe('Orca cloud profile service session refresh', () => {
   beforeEach(() => {
     userDataPath = mkdtempSync(join(tmpdir(), 'orca-cloud-service-refresh-'))
-    beginOrcaCloudPkceFlowMock.mockReset()
     createOrcaCloudProfileMock.mockReset()
-    exchangeOrcaCloudAuthCodeMock.mockReset()
+    signInOrcaCloudSessionMock.mockReset()
     refreshOrcaCloudCapabilitiesMock.mockReset()
     refreshOrcaCloudSessionMock.mockReset()
     safeStorageMock.decryptString.mockReset()
@@ -128,7 +115,6 @@ describe('Orca cloud profile service session refresh', () => {
     safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
     vi.unstubAllEnvs()
     vi.stubEnv('ORCA_CLOUD_API_URL', '')
-    vi.stubEnv('ORCA_CLOUD_CLIENT_ID', '')
   })
 
   afterEach(() => {
@@ -139,7 +125,7 @@ describe('Orca cloud profile service session refresh', () => {
   it('refreshes an expired access token before creating cloud profiles', async () => {
     configureCloudEnv()
     mockSuccessfulConnect(Date.now() - 1_000)
-    await connectCurrentOrcaProfile(userDataPath)
+    await signInCurrentOrcaProfile(userDataPath, credentials)
     refreshOrcaCloudSessionMock.mockResolvedValue({
       accessToken: 'rotated-access-token',
       refreshToken: 'rotated-refresh-token',
@@ -182,7 +168,7 @@ describe('Orca cloud profile service session refresh', () => {
   it('refreshes capability flags for the connected profile', async () => {
     configureCloudEnv()
     mockSuccessfulConnect()
-    await connectCurrentOrcaProfile(userDataPath)
+    await signInCurrentOrcaProfile(userDataPath, credentials)
     refreshOrcaCloudCapabilitiesMock.mockResolvedValue({
       capabilities: {
         flags: { share: false, team: true },
@@ -206,7 +192,7 @@ describe('Orca cloud profile service session refresh', () => {
   it('clears stale active org metadata when capability refresh returns no active org', async () => {
     configureCloudEnv()
     mockSuccessfulConnect()
-    exchangeOrcaCloudAuthCodeMock.mockResolvedValue({
+    signInOrcaCloudSessionMock.mockResolvedValue({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       expiresAt: futureExpiresAt(),
@@ -214,7 +200,7 @@ describe('Orca cloud profile service session refresh', () => {
       organizations,
       capabilities
     } satisfies OrcaCloudSessionExchangeResponse)
-    await connectCurrentOrcaProfile(userDataPath)
+    await signInCurrentOrcaProfile(userDataPath, credentials)
     refreshOrcaCloudCapabilitiesMock.mockResolvedValue({
       cloud: cloudSummary,
       organizations: [],
@@ -240,7 +226,7 @@ describe('Orca cloud profile service session refresh', () => {
   it('requires reconnect when an expired refresh token is rejected', async () => {
     configureCloudEnv()
     mockSuccessfulConnect(Date.now() - 1_000)
-    await connectCurrentOrcaProfile(userDataPath)
+    await signInCurrentOrcaProfile(userDataPath, credentials)
     refreshOrcaCloudSessionMock.mockRejectedValue(new OrcaCloudRequestErrorMock(401))
 
     const result = await refreshCurrentOrcaProfileAuth(userDataPath)

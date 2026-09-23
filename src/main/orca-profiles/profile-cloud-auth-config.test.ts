@@ -12,34 +12,30 @@ vi.mock('electron', () => ({
 }))
 
 describe('Orca cloud auth config', () => {
-  it('reports unconfigured without both API URL and client ID', () => {
+  it('reports unconfigured without an API URL', () => {
     expect(getOrcaCloudAuthConfig({})).toEqual({
       configured: false,
-      setupMessage: 'Orca Cloud sign-in is not configured for this build.'
+      setupMessage: 'Webuddy Cloud sign-in is not configured for this build.'
     })
   })
 
   it('builds default desktop auth endpoints from the API URL', () => {
     const state = getOrcaCloudAuthConfig({
-      ORCA_CLOUD_API_URL: 'https://orca-cloud.example/',
-      ORCA_CLOUD_CLIENT_ID: 'desktop-client'
+      ORCA_CLOUD_API_URL: 'https://orca-cloud.example/'
     })
 
     expect(state).toEqual({
       configured: true,
       config: {
         apiBaseUrl: 'https://orca-cloud.example',
-        authorizeEndpoint: 'https://orca-cloud.example/v1/desktop/auth/authorize',
-        sessionEndpoint: 'https://orca-cloud.example/v1/desktop/auth/session',
-        refreshEndpoint: 'https://orca-cloud.example/v1/desktop/auth/refresh',
-        capabilitiesEndpoint: 'https://orca-cloud.example/v1/desktop/auth/capabilities',
-        profileEndpoint: 'https://orca-cloud.example/v1/desktop/auth/profile',
-        orgEndpoint: 'https://orca-cloud.example/v1/desktop/auth/org',
-        logoutEndpoint: 'https://orca-cloud.example/v1/desktop/auth/logout',
-        relayTokenEndpoint: 'https://orca-cloud.example/v1/desktop/auth/relay-token',
-        relayDirectorUrl: 'https://relay.cloudwaveai.cn',
-        clientId: 'desktop-client',
-        scope: 'openid profile email offline_access'
+        sessionEndpoint: 'https://orca-cloud.example/api/desktop/session',
+        refreshEndpoint: 'https://orca-cloud.example/api/desktop/refresh',
+        capabilitiesEndpoint: 'https://orca-cloud.example/api/desktop/capabilities',
+        profileEndpoint: 'https://orca-cloud.example/api/desktop/profile',
+        orgEndpoint: 'https://orca-cloud.example/api/desktop/org',
+        logoutEndpoint: 'https://orca-cloud.example/api/desktop/logout',
+        relayTokenEndpoint: 'https://orca-cloud.example/api/desktop/relay-token',
+        relayDirectorUrl: 'https://webuddyserver.cloudwaveai.cn'
       }
     })
   })
@@ -48,26 +44,22 @@ describe('Orca cloud auth config', () => {
     expect(getOrcaCloudAuthConfig({}, true)).toEqual({
       configured: true,
       config: {
-        apiBaseUrl: 'https://login.cloudwaveai.cn',
-        authorizeEndpoint: 'https://login.cloudwaveai.cn/v1/desktop/auth/authorize',
-        sessionEndpoint: 'https://login.cloudwaveai.cn/v1/desktop/auth/session',
-        refreshEndpoint: 'https://login.cloudwaveai.cn/v1/desktop/auth/refresh',
-        capabilitiesEndpoint: 'https://login.cloudwaveai.cn/v1/desktop/auth/capabilities',
-        profileEndpoint: 'https://login.cloudwaveai.cn/v1/desktop/auth/profile',
-        orgEndpoint: 'https://login.cloudwaveai.cn/v1/desktop/auth/org',
-        logoutEndpoint: 'https://login.cloudwaveai.cn/v1/desktop/auth/logout',
-        relayTokenEndpoint: 'https://login.cloudwaveai.cn/v1/desktop/auth/relay-token',
-        relayDirectorUrl: 'https://relay.cloudwaveai.cn',
-        clientId: 'orca-desktop',
-        scope: 'openid profile email offline_access'
+        apiBaseUrl: 'https://webuddyserver.cloudwaveai.cn',
+        sessionEndpoint: 'https://webuddyserver.cloudwaveai.cn/api/desktop/session',
+        refreshEndpoint: 'https://webuddyserver.cloudwaveai.cn/api/desktop/refresh',
+        capabilitiesEndpoint: 'https://webuddyserver.cloudwaveai.cn/api/desktop/capabilities',
+        profileEndpoint: 'https://webuddyserver.cloudwaveai.cn/api/desktop/profile',
+        orgEndpoint: 'https://webuddyserver.cloudwaveai.cn/api/desktop/org',
+        logoutEndpoint: 'https://webuddyserver.cloudwaveai.cn/api/desktop/logout',
+        relayTokenEndpoint: 'https://webuddyserver.cloudwaveai.cn/api/desktop/relay-token',
+        relayDirectorUrl: 'https://webuddyserver.cloudwaveai.cn'
       }
     })
   })
 
   it('allows loopback HTTP endpoints for local desktop auth development', () => {
     const state = getOrcaCloudAuthConfig({
-      ORCA_CLOUD_API_URL: 'http://localhost:4100',
-      ORCA_CLOUD_CLIENT_ID: 'desktop-client'
+      ORCA_CLOUD_API_URL: 'http://localhost:4100'
     })
 
     expect(state.configured).toBe(true)
@@ -75,20 +67,11 @@ describe('Orca cloud auth config', () => {
 
   it('rejects loopback HTTP endpoints in packaged builds', () => {
     expect(
-      getOrcaCloudAuthConfig(
-        {
-          ORCA_CLOUD_API_URL: 'http://localhost:4100',
-          ORCA_CLOUD_CLIENT_ID: 'desktop-client'
-        },
-        true
-      )
+      getOrcaCloudAuthConfig({ ORCA_CLOUD_API_URL: 'http://localhost:4100' }, true)
     ).toMatchObject({ configured: false })
 
     const httpsState = getOrcaCloudAuthConfig(
-      {
-        ORCA_CLOUD_API_URL: 'https://orca-cloud.example',
-        ORCA_CLOUD_CLIENT_ID: 'desktop-client'
-      },
+      { ORCA_CLOUD_API_URL: 'https://orca-cloud.example' },
       true
     )
     expect(httpsState.configured).toBe(true)
@@ -96,10 +79,7 @@ describe('Orca cloud auth config', () => {
 
   it('rejects non-HTTPS non-loopback API URLs', () => {
     expect(
-      getOrcaCloudAuthConfig({
-        ORCA_CLOUD_API_URL: 'http://orca-cloud.example',
-        ORCA_CLOUD_CLIENT_ID: 'desktop-client'
-      })
+      getOrcaCloudAuthConfig({ ORCA_CLOUD_API_URL: 'http://orca-cloud.example' })
     ).toMatchObject({ configured: false })
   })
 

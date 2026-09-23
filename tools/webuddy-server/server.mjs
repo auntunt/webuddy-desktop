@@ -26,17 +26,12 @@ import {
 } from './lib/queries.mjs'
 import { ensureBootstrapAdmin, resolveToken } from './lib/auth.mjs'
 import { handleAuthRoute } from './lib/auth-routes.mjs'
+import { handleDesktopAuthRoute } from './lib/desktop-auth-routes.mjs'
 import { listTodos, syncTodos } from './lib/sync.mjs'
 import { workSummary } from './lib/insights.mjs'
 import { lastAnalysis, runAnalysis, startAnalysisSchedule } from './lib/analysis-job.mjs'
 import { llmConfig } from './lib/llm.mjs'
-import {
-  jwksFor,
-  loadOrCreateSigningKey,
-  mintRelayToken,
-  relayHostIdFor,
-  signingKeyId
-} from './lib/relay-tokens.mjs'
+import { jwksFor, loadOrCreateSigningKey, signingKeyId } from './lib/relay-tokens.mjs'
 import {
   extractSkills,
   getSkill,
@@ -66,7 +61,9 @@ const bootstrapped = ensureBootstrapAdmin(db, {
 // relay 的签发密钥：持久化在数据目录，重启后旧 token 仍验得过。
 const relayKeys = loadOrCreateSigningKey(DATA_DIR)
 const relayKid = signingKeyId(relayKeys.publicJwk)
-const relayIssuer = process.env.WEBUDDY_RELAY_ISSUER || `https://${process.env.WEBUDDY_PUBLIC_HOST || 'webuddyserver.cloudwaveai.cn'}`
+const relayIssuer =
+  process.env.WEBUDDY_RELAY_ISSUER ||
+  `https://${process.env.WEBUDDY_PUBLIC_HOST || 'webuddyserver.cloudwaveai.cn'}`
 
 const REQUIRED = ['schema', 'actor', 'agent', 'session', 'transcript', 'consent']
 const REQUIRED_PATHS = [
@@ -182,6 +179,19 @@ const server = createServer(async (req, res) => {
 
     const auth = authenticate(req, url)
     if (await handleAuthRoute({ db, req, res, url, auth })) {
+      return
+    }
+    // 桌面端的登录/刷新本身不带 access token，所以必须排在下面那道 401 闸之前。
+    if (
+      await handleDesktopAuthRoute({
+        db,
+        req,
+        res,
+        url,
+        auth,
+        relay: { privateKey: relayKeys.privateKey, kid: relayKid, issuer: relayIssuer }
+      })
+    ) {
       return
     }
     if (!auth) {
@@ -332,23 +342,8 @@ const server = createServer(async (req, res) => {
       return json(res, 200, await extractSkills(db, auth.user.username))
     }
 
-    // ---- relay 接入：给已登录用户签发 host-control token ----
-    if (route === '/api/relay/token' && req.method === 'POST') {
-      const ttl = Math.min(Number(url.searchParams.get('ttl') || 3600), 86400)
-      return json(res, 200, {
-        token: mintRelayToken({
-          privateKey: relayKeys.privateKey,
-          kid: relayKid,
-          issuer: relayIssuer,
-          userId: auth.user.username,
-          ttlSeconds: ttl
-        }),
-        relayHostId: relayHostIdFor(auth.user.username),
-        issuer: relayIssuer,
-        jwks: `${relayIssuer}/api/relay/jwks`,
-        expiresInSeconds: ttl
-      })
-    }
+    // relay token 的签发在 /api/desktop/relay-token：relayHostId 只能由主机公钥推导，
+    // 那条路径才拿得到 hostPublicKeyB64。这里只留 relay 取公钥用的 JWKS。
 
     if (route === '/api/stats') {
       const group = url.searchParams.get('group') || 'person'

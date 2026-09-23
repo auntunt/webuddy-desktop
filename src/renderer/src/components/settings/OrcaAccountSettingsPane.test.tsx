@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => {
     }
   }
   return {
-    connect: vi.fn(),
+    signIn: vi.fn(),
     fetchAuthStatus: vi.fn(),
     signOut: vi.fn(),
     state
@@ -36,7 +36,7 @@ vi.mock('@/store', () => ({
   useAppStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({
       ...mocks.state,
-      connectCurrentOrcaProfile: mocks.connect,
+      signInCurrentOrcaProfile: mocks.signIn,
       fetchOrcaProfileAuthStatus: mocks.fetchAuthStatus,
       signOutCurrentOrcaProfile: mocks.signOut
     })
@@ -55,9 +55,16 @@ vi.mock('../orca-profiles/OrcaProfileSignOutConfirmDialog', () => ({
 
 import { OrcaAccountSettingsPane } from './OrcaAccountSettingsPane'
 
+async function submitCredentials(username: string, password: string): Promise<void> {
+  const user = userEvent.setup()
+  await user.type(screen.getByLabelText('Username'), username)
+  await user.type(screen.getByLabelText('Password'), password)
+  await user.click(screen.getByRole('button', { name: 'Sign in to Webuddy' }))
+}
+
 describe('OrcaAccountSettingsPane', () => {
   beforeEach(() => {
-    mocks.connect.mockReset()
+    mocks.signIn.mockReset()
     mocks.fetchAuthStatus.mockReset()
     mocks.signOut.mockReset()
     mocks.signOut.mockResolvedValue({ status: 'signed-out' })
@@ -77,29 +84,50 @@ describe('OrcaAccountSettingsPane', () => {
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
     expect(screen.getByText('ada@example.com')).toBeInTheDocument()
     expect(screen.getByText('Artifact sharing')).toBeInTheDocument()
-    expect(screen.getByText('Orca Relay')).toBeInTheDocument()
+    expect(screen.getByText('Webuddy Relay')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Sign out' }))
     await user.click(screen.getByRole('button', { name: 'Confirm sign out' }))
     expect(mocks.signOut).toHaveBeenCalledOnce()
   })
 
-  it('offers sign in for a local profile', async () => {
-    const user = userEvent.setup()
+  it('signs in with the entered credentials', async () => {
     mocks.state.orcaProfileAuthStatus = { configured: true, state: 'local' }
-    mocks.connect.mockReturnValue(new Promise(() => {}))
+    mocks.signIn.mockResolvedValue({ status: 'connected', auth: { state: 'connected' } })
     render(<OrcaAccountSettingsPane />)
 
     expect(
       screen.getByText(
-        'Sign in to extend Orca with cloud features, including Artifacts and Orca Relay.'
+        'Sign in to extend Webuddy with cloud features, including Artifacts and Webuddy Relay.'
       )
     ).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Sign in to Orca' }))
-    expect(mocks.connect).toHaveBeenCalledOnce()
-    expect(screen.getByRole('button', { name: 'Sign in to Orca' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'Sign in to Orca' }))
-    expect(mocks.connect).toHaveBeenCalledTimes(2)
+
+    await submitCredentials('nina', 'correct-horse')
+
+    expect(mocks.signIn).toHaveBeenCalledWith({ username: 'nina', password: 'correct-horse' })
+  })
+
+  it('keeps the form interactive after a rejected sign-in and shows why', async () => {
+    mocks.state.orcaProfileAuthStatus = { configured: true, state: 'local' }
+    mocks.signIn.mockResolvedValue({
+      status: 'failed',
+      auth: { state: 'local' },
+      error: '用户名或密码不对'
+    })
+    render(<OrcaAccountSettingsPane />)
+
+    await submitCredentials('nina', 'wrong')
+
+    expect(await screen.findByText('用户名或密码不对')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in to Webuddy' })).toBeEnabled()
+  })
+
+  it('hides the form when this build has no sign-in endpoint', () => {
+    mocks.state.orcaProfileAuthStatus = { configured: false, state: 'unconfigured' }
+    render(<OrcaAccountSettingsPane />)
+
+    expect(screen.getByText('Webuddy sign-in is unavailable in this build.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()
   })
 
   it('loads account status when it is not hydrated yet', () => {
@@ -107,6 +135,6 @@ describe('OrcaAccountSettingsPane', () => {
     render(<OrcaAccountSettingsPane />)
 
     expect(mocks.fetchAuthStatus).toHaveBeenCalledOnce()
-    expect(screen.getByRole('button', { name: 'Sign in to Orca' })).toBeDisabled()
+    expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()
   })
 })

@@ -16,10 +16,10 @@ import {
 import { cloudSessionIdentity, tombstoneCloudSession } from './profile-cloud-session-mutation'
 import {
   createOrcaCloudProfile,
-  exchangeOrcaCloudAuthCode,
-  revokeOrcaCloudSession
+  OrcaCloudRequestError,
+  revokeOrcaCloudSession,
+  signInOrcaCloudSession
 } from './profile-cloud-client'
-import { beginOrcaCloudPkceFlow } from './profile-cloud-pkce'
 import {
   createCloudLinkedOrcaProfileRecord,
   linkOrcaProfileToCloud,
@@ -44,10 +44,6 @@ function invalidateOutstandingCloudConnectAttempts(): void {
   linkedCloudConnectAttempt = nextCloudConnectAttempt
 }
 
-function isUserCancelledAuthError(message: string): boolean {
-  return message === 'orca_cloud_auth_timeout' || message === 'orca_cloud_auth_denied'
-}
-
 function activeAuth(
   active: ReturnType<typeof ensureActiveOrcaProfile>,
   userDataPath: string
@@ -59,8 +55,9 @@ export function getCurrentOrcaProfileAuthStatus(userDataPath: string): OrcaProfi
   return getOrcaProfileAuthStatusFromProfile(ensureActiveOrcaProfile(userDataPath), userDataPath)
 }
 
-export async function connectCurrentOrcaProfile(
-  userDataPath: string
+export async function signInCurrentOrcaProfile(
+  userDataPath: string,
+  credentials: { username: string; password: string }
 ): Promise<ConnectCurrentOrcaProfileResult> {
   const active = ensureActiveOrcaProfile(userDataPath)
   if (isOrcaCloudDevAuthEnabled()) {
@@ -83,17 +80,13 @@ export async function connectCurrentOrcaProfile(
 
   const attempt = ++nextCloudConnectAttempt
   try {
-    const code = await beginOrcaCloudPkceFlow(configState.config, active.profile.id)
-    if (attempt < linkedCloudConnectAttempt) {
-      return {
-        status: 'cancelled',
-        auth: getCurrentOrcaProfileAuthStatus(userDataPath)
-      }
-    }
-    const exchange = await exchangeOrcaCloudAuthCode(configState.config, {
-      ...code,
+    const exchange = await signInOrcaCloudSession(configState.config, {
+      username: credentials.username,
+      password: credentials.password,
       localProfileId: active.profile.id
     })
+    // Why 请求返回后还要再确认一次：退出登录会 bump 计数，一次仍在飞的登录
+    // 不允许把刚清掉的会话又写回去。
     if (attempt < linkedCloudConnectAttempt) {
       return {
         status: 'cancelled',
@@ -110,13 +103,14 @@ export async function connectCurrentOrcaProfile(
       profiles: list.profiles
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (isUserCancelledAuthError(message)) {
-      return {
-        status: 'cancelled',
-        auth: getCurrentOrcaProfileAuthStatus(userDataPath)
-      }
-    }
+    // Why 401 单独翻译：服务端的 body 读不到（postJson 只带状态码），
+    // 而"用户名或密码不对"是唯一用户能自己纠正的失败。
+    const message =
+      error instanceof OrcaCloudRequestError && error.statusCode === 401
+        ? '用户名或密码不对'
+        : error instanceof Error
+          ? error.message
+          : String(error)
     return {
       status: 'failed',
       auth: getCurrentOrcaProfileAuthStatus(userDataPath),

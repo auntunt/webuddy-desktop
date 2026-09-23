@@ -108,7 +108,7 @@ describe('unexpected signout lifecycle', () => {
   })
 
   it('keeps a failed sign-in available without recording another appearance', async () => {
-    useAppStore.setState({ connectCurrentOrcaProfile: vi.fn().mockResolvedValue(undefined) })
+    useAppStore.setState({ openOrcaAccountSettings: vi.fn() })
     await showCard()
     fireEvent.click(screen.getByRole('button', { name: 'Sign in to Orca' }))
     await act(async () => {})

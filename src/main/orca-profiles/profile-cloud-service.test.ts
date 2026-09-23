@@ -10,18 +10,23 @@ import type {
 import type { OrcaCloudSessionExchangeResponse } from './profile-cloud-session-exchange'
 
 const {
-  beginOrcaCloudPkceFlowMock,
   createOrcaCloudProfileMock,
-  exchangeOrcaCloudAuthCodeMock,
   revokeOrcaCloudSessionMock,
   selectOrcaCloudOrgMock,
+  signInOrcaCloudSessionMock,
+  OrcaCloudRequestErrorMock,
   safeStorageMock
 } = vi.hoisted(() => ({
-  beginOrcaCloudPkceFlowMock: vi.fn(),
   createOrcaCloudProfileMock: vi.fn(),
-  exchangeOrcaCloudAuthCodeMock: vi.fn(),
   revokeOrcaCloudSessionMock: vi.fn(),
   selectOrcaCloudOrgMock: vi.fn(),
+  signInOrcaCloudSessionMock: vi.fn(),
+  OrcaCloudRequestErrorMock: class OrcaCloudRequestError extends Error {
+    constructor(public readonly statusCode: number) {
+      super(`orca_cloud_request_failed_${statusCode}`)
+      this.name = 'OrcaCloudRequestError'
+    }
+  },
   safeStorageMock: {
     decryptString: vi.fn((value: Buffer) => value.toString('utf-8')),
     encryptString: vi.fn((value: string) => Buffer.from(value, 'utf-8')),
@@ -38,24 +43,25 @@ vi.mock('electron', () => ({
   safeStorage: safeStorageMock
 }))
 
-vi.mock('./profile-cloud-pkce', () => ({
-  beginOrcaCloudPkceFlow: beginOrcaCloudPkceFlowMock
-}))
-
+// Why the mock exports its own error class: the service does
+// `instanceof OrcaCloudRequestError`, so both sides must resolve the same binding.
 vi.mock('./profile-cloud-client', () => ({
+  OrcaCloudRequestError: OrcaCloudRequestErrorMock,
   createOrcaCloudProfile: createOrcaCloudProfileMock,
-  exchangeOrcaCloudAuthCode: exchangeOrcaCloudAuthCodeMock,
   revokeOrcaCloudSession: revokeOrcaCloudSessionMock,
-  selectOrcaCloudOrg: selectOrcaCloudOrgMock
+  selectOrcaCloudOrg: selectOrcaCloudOrgMock,
+  signInOrcaCloudSession: signInOrcaCloudSessionMock
 }))
 
 import {
-  connectCurrentOrcaProfile,
   createCloudLinkedOrcaProfile,
   getCurrentOrcaProfileAuthStatus,
   selectCurrentOrcaProfileOrg,
+  signInCurrentOrcaProfile,
   signOutCurrentOrcaProfile
 } from './profile-cloud-service'
+
+const credentials = { username: 'nina', password: 'correct-horse' }
 
 const cloudSummary: OrcaProfileCloudSummary = {
   cloudProfileId: 'cloud-profile-1',
@@ -77,22 +83,14 @@ const organizations: OrcaCloudOrgSummary[] = [
 
 function configureCloudEnv(): void {
   vi.stubEnv('ORCA_CLOUD_API_URL', 'https://orca-cloud.example')
-  vi.stubEnv('ORCA_CLOUD_CLIENT_ID', 'desktop-client')
 }
 
 function futureExpiresAt(): number {
   return Date.now() + 3_600_000
 }
 
-function mockSuccessfulConnect(expiresAt = futureExpiresAt()): void {
-  beginOrcaCloudPkceFlowMock.mockResolvedValue({
-    code: 'auth-code',
-    codeVerifier: 'code-verifier',
-    nonce: 'nonce',
-    redirectUri: 'http://127.0.0.1:4100/auth/callback',
-    state: 'state'
-  })
-  exchangeOrcaCloudAuthCodeMock.mockResolvedValue({
+function mockSuccessfulSignIn(expiresAt = futureExpiresAt()): void {
+  signInOrcaCloudSessionMock.mockResolvedValue({
     accessToken: 'access-token',
     refreshToken: 'refresh-token',
     expiresAt,
@@ -105,11 +103,10 @@ function mockSuccessfulConnect(expiresAt = futureExpiresAt()): void {
 describe('Orca cloud profile service', () => {
   beforeEach(() => {
     userDataPath = mkdtempSync(join(tmpdir(), 'orca-cloud-service-'))
-    beginOrcaCloudPkceFlowMock.mockReset()
     createOrcaCloudProfileMock.mockReset()
-    exchangeOrcaCloudAuthCodeMock.mockReset()
     revokeOrcaCloudSessionMock.mockReset()
     selectOrcaCloudOrgMock.mockReset()
+    signInOrcaCloudSessionMock.mockReset()
     safeStorageMock.decryptString.mockReset()
     safeStorageMock.encryptString.mockReset()
     safeStorageMock.isEncryptionAvailable.mockReset()
@@ -119,7 +116,6 @@ describe('Orca cloud profile service', () => {
     revokeOrcaCloudSessionMock.mockResolvedValue(undefined)
     vi.unstubAllEnvs()
     vi.stubEnv('ORCA_CLOUD_API_URL', '')
-    vi.stubEnv('ORCA_CLOUD_CLIENT_ID', '')
   })
 
   afterEach(() => {
@@ -138,9 +134,9 @@ describe('Orca cloud profile service', () => {
 
   it('connects the active local profile without replacing its local profile ID', async () => {
     configureCloudEnv()
-    mockSuccessfulConnect()
+    mockSuccessfulSignIn()
 
-    const result = await connectCurrentOrcaProfile(userDataPath)
+    const result = await signInCurrentOrcaProfile(userDataPath, credentials)
 
     if (result.status !== 'connected') {
       throw new Error(`Expected connected result, got ${result.status}`)
@@ -151,10 +147,10 @@ describe('Orca cloud profile service', () => {
       kind: 'cloud-linked',
       cloud: cloudSummary
     })
-    expect(exchangeOrcaCloudAuthCodeMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ localProfileId: 'local-default', nonce: 'nonce' })
-    )
+    expect(signInOrcaCloudSessionMock).toHaveBeenCalledWith(expect.any(Object), {
+      ...credentials,
+      localProfileId: 'local-default'
+    })
     expect(getCurrentOrcaProfileAuthStatus(userDataPath)).toMatchObject({
       state: 'connected',
       persistence: 'encrypted',
@@ -164,44 +160,41 @@ describe('Orca cloud profile service', () => {
     })
   })
 
-  it('treats provider-denied sign-in as a cancelled connect attempt', async () => {
+  it('reports a rejected credential as a failed sign-in', async () => {
     configureCloudEnv()
-    beginOrcaCloudPkceFlowMock.mockRejectedValue(new Error('orca_cloud_auth_denied'))
+    signInOrcaCloudSessionMock.mockRejectedValue(new OrcaCloudRequestErrorMock(401))
 
-    const result = await connectCurrentOrcaProfile(userDataPath)
+    const result = await signInCurrentOrcaProfile(userDataPath, credentials)
 
-    expect(result.status).toBe('cancelled')
-    expect(exchangeOrcaCloudAuthCodeMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ status: 'failed', error: '用户名或密码不对' })
     expect(getCurrentOrcaProfileAuthStatus(userDataPath)).toMatchObject({
       state: 'local',
       persistence: 'none'
     })
   })
 
-  it('reports callback failures as failed instead of cancelled', async () => {
+  it('reports other transport failures verbatim', async () => {
     configureCloudEnv()
-    beginOrcaCloudPkceFlowMock.mockRejectedValue(new Error('orca_cloud_auth_callback_failed'))
+    signInOrcaCloudSessionMock.mockRejectedValue(new OrcaCloudRequestErrorMock(503))
 
-    const result = await connectCurrentOrcaProfile(userDataPath)
+    const result = await signInCurrentOrcaProfile(userDataPath, credentials)
 
-    expect(result).toMatchObject({ status: 'failed', error: 'orca_cloud_auth_callback_failed' })
-    expect(exchangeOrcaCloudAuthCodeMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ status: 'failed' })
     expect(getCurrentOrcaProfileAuthStatus(userDataPath)).toMatchObject({ state: 'local' })
   })
 
   it('does not report a saved cloud session as connected when cloud config is unavailable', async () => {
     configureCloudEnv()
-    mockSuccessfulConnect()
-    await connectCurrentOrcaProfile(userDataPath)
+    mockSuccessfulSignIn()
+    await signInCurrentOrcaProfile(userDataPath, credentials)
     vi.stubEnv('ORCA_CLOUD_API_URL', '')
-    vi.stubEnv('ORCA_CLOUD_CLIENT_ID', '')
 
     expect(getCurrentOrcaProfileAuthStatus(userDataPath)).toMatchObject({
       configured: false,
       state: 'unconfigured',
       persistence: 'encrypted',
       cloud: cloudSummary,
-      setupMessage: 'Orca Cloud sign-in is not configured for this build.'
+      setupMessage: 'Webuddy Cloud sign-in is not configured for this build.'
     })
     expect(getCurrentOrcaProfileAuthStatus(userDataPath).organizations).toBeUndefined()
     expect(getCurrentOrcaProfileAuthStatus(userDataPath).capabilities).toBeUndefined()
@@ -209,8 +202,8 @@ describe('Orca cloud profile service', () => {
 
   it('signs out by removing cloud metadata while keeping the local profile', async () => {
     configureCloudEnv()
-    mockSuccessfulConnect()
-    await connectCurrentOrcaProfile(userDataPath)
+    mockSuccessfulSignIn()
+    await signInCurrentOrcaProfile(userDataPath, credentials)
 
     const result = await signOutCurrentOrcaProfile(userDataPath)
 
@@ -227,8 +220,8 @@ describe('Orca cloud profile service', () => {
 
   it('creates a new empty cloud-linked profile with its own cloud session', async () => {
     configureCloudEnv()
-    mockSuccessfulConnect()
-    await connectCurrentOrcaProfile(userDataPath)
+    mockSuccessfulSignIn()
+    await signInCurrentOrcaProfile(userDataPath, credentials)
     createOrcaCloudProfileMock.mockResolvedValue({
       accessToken: 'new-access-token',
       refreshToken: 'new-refresh-token',
@@ -266,8 +259,8 @@ describe('Orca cloud profile service', () => {
 
   it('selects an organization for a connected profile', async () => {
     configureCloudEnv()
-    mockSuccessfulConnect()
-    await connectCurrentOrcaProfile(userDataPath)
+    mockSuccessfulSignIn()
+    await signInCurrentOrcaProfile(userDataPath, credentials)
     const orgCloudSummary = {
       ...cloudSummary,
       activeOrgId: 'org-1',

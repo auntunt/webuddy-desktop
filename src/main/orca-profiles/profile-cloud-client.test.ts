@@ -4,27 +4,24 @@ import type { OrcaCloudAuthConfig } from './profile-cloud-auth-config'
 import type { OrcaCloudSession } from './profile-cloud-session-store'
 import {
   createOrcaCloudProfile,
-  exchangeOrcaCloudAuthCode,
   refreshOrcaCloudCapabilities,
   refreshOrcaCloudSession,
-  selectOrcaCloudOrg
+  selectOrcaCloudOrg,
+  signInOrcaCloudSession
 } from './profile-cloud-client'
 
 const fetchMock = vi.fn()
 
 const config: OrcaCloudAuthConfig = {
   apiBaseUrl: 'https://orca-cloud.example',
-  authorizeEndpoint: 'https://orca-cloud.example/v1/desktop/auth/authorize',
-  sessionEndpoint: 'https://orca-cloud.example/v1/desktop/auth/session',
-  refreshEndpoint: 'https://orca-cloud.example/v1/desktop/auth/refresh',
-  capabilitiesEndpoint: 'https://orca-cloud.example/v1/desktop/auth/capabilities',
-  profileEndpoint: 'https://orca-cloud.example/v1/desktop/auth/profile',
-  orgEndpoint: 'https://orca-cloud.example/v1/desktop/auth/org',
-  logoutEndpoint: 'https://orca-cloud.example/v1/desktop/auth/logout',
-  relayTokenEndpoint: 'https://orca-cloud.example/v1/desktop/auth/relay-token',
-  relayDirectorUrl: 'https://relay.example',
-  clientId: 'desktop-client',
-  scope: 'openid profile email offline_access'
+  sessionEndpoint: 'https://orca-cloud.example/api/desktop/session',
+  refreshEndpoint: 'https://orca-cloud.example/api/desktop/refresh',
+  capabilitiesEndpoint: 'https://orca-cloud.example/api/desktop/capabilities',
+  profileEndpoint: 'https://orca-cloud.example/api/desktop/profile',
+  orgEndpoint: 'https://orca-cloud.example/api/desktop/org',
+  logoutEndpoint: 'https://orca-cloud.example/api/desktop/logout',
+  relayTokenEndpoint: 'https://orca-cloud.example/api/desktop/relay-token',
+  relayDirectorUrl: 'https://relay.example'
 }
 
 const session: OrcaCloudSession = {
@@ -47,7 +44,7 @@ describe('Orca cloud client', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  it('normalizes session exchange organizations', async () => {
+  it('normalizes the sign-in session exchange organizations', async () => {
     mockFetchJson({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -68,12 +65,9 @@ describe('Orca cloud client', () => {
     })
 
     await expect(
-      exchangeOrcaCloudAuthCode(config, {
-        code: 'code',
-        codeVerifier: 'verifier',
-        nonce: 'nonce',
-        redirectUri: 'http://127.0.0.1:4100/auth/callback',
-        state: 'state',
+      signInOrcaCloudSession(config, {
+        username: 'nina',
+        password: 'correct-horse',
         localProfileId: 'local-default'
       })
     ).resolves.toMatchObject({
@@ -83,11 +77,8 @@ describe('Orca cloud client', () => {
       config.sessionEndpoint,
       expect.objectContaining({
         body: JSON.stringify({
-          code: 'code',
-          codeVerifier: 'verifier',
-          nonce: 'nonce',
-          redirectUri: 'http://127.0.0.1:4100/auth/callback',
-          state: 'state',
+          username: 'nina',
+          password: 'correct-horse',
           localProfileId: 'local-default'
         })
       })

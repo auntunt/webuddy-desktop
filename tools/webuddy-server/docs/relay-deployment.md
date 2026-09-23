@@ -11,7 +11,7 @@
 ✅ 1) relay 容器跑起来        webuddy-relay  →  127.0.0.1:8791
 ✅ 2) nginx 路径分流（443）   /v1/* /health /ready → relay；其余 → webuddy-server
 ✅ 3) 鉴权对接验收通过        我们的 token → 101；伪造 → 401
-⬜ 4) 桌面端指向我们的 relay
+✅ 4) 桌面端指向我们的 relay   桌面端已改为账号密码登录，端点见下
 ⬜ 5) 手机端产物托管 + 配对
 ⬜ 6) 端到端联调
 ```
@@ -63,8 +63,18 @@ claims    sub, prof, relayHostId(/^[A-Za-z0-9_-]{16}$/ 恰好16位),
 
 签发方在 `tools/webuddy-server/lib/relay-tokens.mjs`：
 - `GET /api/relay/jwks` 公钥（免鉴权，relay 来取）
-- `POST /api/relay/token` 给已登录用户签发
+- `POST /api/desktop/relay-token` 给已登录的桌面端签发（见下）
 - 私钥持久化在 `WEBUDDY_DATA/relay-signing-key.json`（600）—— **删了所有 token 立刻失效**
+
+**`relayHostId` 必须由主机公钥推导**，不是由 userId：
+```
+relayHostId = base64url(sha256(hostPublicKey32字节)).slice(0, 16)
+```
+三方用的是同一个算法，改任何一处都会让 host 校验失败：
+客户端 `src/main/runtime/relay/relay-http-client.ts:89`、
+relay `cloud/apps/relay/src/host-session-registry.ts:140`、
+签发方 `relay-tokens.mjs` 的 `relayHostIdForPublicKey`。
+公钥是 tweetnacl 的 32 字节 Curve25519 公钥，`hostPublicKeyB64` 是**标准 base64**。
 
 线上实测：
 ```
@@ -72,6 +82,33 @@ JWKS   kty=EC crv=P-256 alg=ES256 kid=Z3EF8xgHdoHtllyA
 Token  sub=admin  relayHostId=lZEt-6gv66L6_R3U  purpose=host-control
        iss=https://webuddyserver.cloudwaveai.cn   aud=orca-relay
 ```
+
+---
+
+## 桌面端认证端点（`lib/desktop-auth-routes.mjs`）
+
+桌面端不再走上游的 PKCE + 浏览器授权页，改为账号密码。响应形状被客户端固定，
+改字段前先读 `src/main/orca-profiles/profile-cloud-client.ts`
+
+| 端点 | 认证 | 请求 | 响应 |
+|---|---|---|---|
+| `POST /api/desktop/session` | 无 | `{username, password}` | 会话交换体 |
+| `POST /api/desktop/refresh` | 无 | `{refreshToken}` | 会话交换体（轮换） |
+| `POST /api/desktop/capabilities` | Bearer | `{}` | `{cloud, organizations, capabilities}` |
+| `POST /api/desktop/relay-token` | Bearer | `{relayHostId, hostPublicKeyB64}` | `{relayToken, expiresAt}`（严格两字段） |
+| `POST /api/desktop/logout` | Bearer | `{refreshToken}` | `{ok:true}` |
+| `POST /api/desktop/profile` | Bearer | `{orgId?, name?}` | 会话交换体 |
+| `POST /api/desktop/org` | Bearer | `{orgId}` | `{cloud, organizations, capabilities}` |
+
+两条硬约束：
+- `capabilities.flags['relay.use']` 必须是 `true`，否则客户端整个 relay 永不连
+- `cloud.userId` / `cloudProfileId` / `activeOrgId` 必须跨刷新稳定，客户端刷新后会比对
+
+路径走 `/api/` 而不是 `/v1/desktop/auth/`：`/v1/` 已经归 relay，一旦 nginx 漏配
+就会静默打到 relay 上返回 404。`/api/` 本来就是 webuddy-server 的地盘，**不需要动 nginx**。
+
+access token 也是 `api_tokens` 表里的一行（1 小时）；refresh token 在
+`desktop_refresh_tokens`（30 天，每次刷新轮换）。
 
 ---
 
@@ -103,17 +140,23 @@ Token  sub=admin  relayHostId=lZEt-6gv66L6_R3U  purpose=host-control
 
 ## 剩余步骤
 
-**4) 桌面端指向我们的 relay**
+**4) 桌面端指向我们的 relay —— 已改完**
 
-`src/main/orca-profiles/profile-cloud-auth-config.ts` 里现在是
-`https://relay.cloudwaveai.cn`，改成 `https://webuddyserver.cloudwaveai.cn`；
-桌面端还要改成用我们的用户身份去 `POST /api/relay/token` 换 relay token
-（现在走的还是上游账号逻辑）。
+`src/main/orca-profiles/profile-cloud-auth-config.ts` 已指向
+`https://webuddyserver.cloudwaveai.cn`，登录改为账号密码（`/api/desktop/session`），
+relay token 走 `/api/desktop/relay-token`。
+
+客户端侧落点：`profile-cloud-client.ts` 的 `signInOrcaCloudSession`、
+`profile-cloud-service.ts` 的 `signInCurrentOrcaProfile`、
+`renderer/.../OrcaAccountSettingsPane.tsx` 的表单。
+上游那套 PKCE（`profile-cloud-pkce.ts`、`profile-cloud-callback-page.ts`）已删除。
 
 **5) 手机端托管**
 
-`out/mobile-web`（`pnpm build:mobile-web` 产出）托管到 webuddy-server 或 nginx 静态目录，
-配对入口做扫码。
+先确认手机**首次加载**的入口：扫描配对码之后从哪里取 bootstrap HTML。
+`out/mobile-web` 是桌面端经 RPC 提供给手机的
+（`src/main/runtime/bundled-mobile-web-bundle.ts`），不是简单的静态站点；
+定下入口之后再决定要不要补一个极简托管页。
 
 **6) 端到端**
 

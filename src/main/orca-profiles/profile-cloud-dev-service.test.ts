@@ -4,14 +4,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const {
-  beginOrcaCloudPkceFlowMock,
-  exchangeOrcaCloudAuthCodeMock,
   revokeOrcaCloudSessionMock,
+  signInOrcaCloudSessionMock,
+  OrcaCloudRequestErrorMock,
   safeStorageMock
 } = vi.hoisted(() => ({
-  beginOrcaCloudPkceFlowMock: vi.fn(),
-  exchangeOrcaCloudAuthCodeMock: vi.fn(),
   revokeOrcaCloudSessionMock: vi.fn(),
+  signInOrcaCloudSessionMock: vi.fn(),
+  OrcaCloudRequestErrorMock: class OrcaCloudRequestError extends Error {
+    constructor(public readonly statusCode: number) {
+      super(`orca_cloud_request_failed_${statusCode}`)
+      this.name = 'OrcaCloudRequestError'
+    }
+  },
   safeStorageMock: {
     decryptString: vi.fn((value: Buffer) => value.toString('utf-8')),
     encryptString: vi.fn((value: string) => Buffer.from(value, 'utf-8')),
@@ -28,33 +33,33 @@ vi.mock('electron', () => ({
   safeStorage: safeStorageMock
 }))
 
-vi.mock('./profile-cloud-pkce', () => ({
-  beginOrcaCloudPkceFlow: beginOrcaCloudPkceFlowMock
-}))
-
+// Why the mock exports its own error class: the service does
+// `instanceof OrcaCloudRequestError`, so both sides must resolve the same binding.
 vi.mock('./profile-cloud-client', () => ({
+  OrcaCloudRequestError: OrcaCloudRequestErrorMock,
   createOrcaCloudProfile: vi.fn(),
-  exchangeOrcaCloudAuthCode: exchangeOrcaCloudAuthCodeMock,
   refreshOrcaCloudCapabilities: vi.fn(),
   refreshOrcaCloudSession: vi.fn(),
   revokeOrcaCloudSession: revokeOrcaCloudSessionMock,
-  selectOrcaCloudOrg: vi.fn()
+  selectOrcaCloudOrg: vi.fn(),
+  signInOrcaCloudSession: signInOrcaCloudSessionMock
 }))
 
 import {
-  connectCurrentOrcaProfile,
   createCloudLinkedOrcaProfile,
   getCurrentOrcaProfileAuthStatus,
   selectCurrentOrcaProfileOrg,
+  signInCurrentOrcaProfile,
   signOutCurrentOrcaProfile
 } from './profile-cloud-service'
+
+const credentials = { username: 'nina', password: 'correct-horse' }
 
 describe('Orca cloud dev auth service', () => {
   beforeEach(() => {
     userDataPath = mkdtempSync(join(tmpdir(), 'orca-cloud-dev-auth-'))
-    beginOrcaCloudPkceFlowMock.mockReset()
-    exchangeOrcaCloudAuthCodeMock.mockReset()
     revokeOrcaCloudSessionMock.mockReset()
+    signInOrcaCloudSessionMock.mockReset()
     safeStorageMock.decryptString.mockReset()
     safeStorageMock.encryptString.mockReset()
     safeStorageMock.isEncryptionAvailable.mockReset()
@@ -65,7 +70,6 @@ describe('Orca cloud dev auth service', () => {
     vi.stubEnv('NODE_ENV', 'development')
     vi.stubEnv('ORCA_CLOUD_DEV_AUTH', '1')
     vi.stubEnv('ORCA_CLOUD_API_URL', '')
-    vi.stubEnv('ORCA_CLOUD_CLIENT_ID', '')
   })
 
   afterEach(() => {
@@ -73,17 +77,16 @@ describe('Orca cloud dev auth service', () => {
     vi.unstubAllEnvs()
   })
 
-  it('connects the active profile without PKCE or cloud endpoints', async () => {
+  it('connects the active profile without hitting the cloud', async () => {
     expect(getCurrentOrcaProfileAuthStatus(userDataPath)).toMatchObject({
       configured: true,
       state: 'local'
     })
 
-    const result = await connectCurrentOrcaProfile(userDataPath)
+    const result = await signInCurrentOrcaProfile(userDataPath, credentials)
 
     expect(result.status).toBe('connected')
-    expect(beginOrcaCloudPkceFlowMock).not.toHaveBeenCalled()
-    expect(exchangeOrcaCloudAuthCodeMock).not.toHaveBeenCalled()
+    expect(signInOrcaCloudSessionMock).not.toHaveBeenCalled()
     expect(getCurrentOrcaProfileAuthStatus(userDataPath)).toMatchObject({
       configured: true,
       state: 'connected',
@@ -100,7 +103,7 @@ describe('Orca cloud dev auth service', () => {
   })
 
   it('selects dev organizations and creates org-scoped cloud profiles locally', async () => {
-    await connectCurrentOrcaProfile(userDataPath)
+    await signInCurrentOrcaProfile(userDataPath, credentials)
 
     const selected = await selectCurrentOrcaProfileOrg(userDataPath, 'dev-acme')
     const created = await createCloudLinkedOrcaProfile(userDataPath, {
@@ -127,7 +130,7 @@ describe('Orca cloud dev auth service', () => {
   })
 
   it('signs out locally without calling the cloud logout endpoint', async () => {
-    await connectCurrentOrcaProfile(userDataPath)
+    await signInCurrentOrcaProfile(userDataPath, credentials)
 
     const result = await signOutCurrentOrcaProfile(userDataPath)
 

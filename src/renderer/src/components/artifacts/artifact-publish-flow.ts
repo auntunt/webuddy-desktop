@@ -98,16 +98,19 @@ export async function publishArtifactFromSurface(
   return null
 }
 
+// Why 只负责把人带到登录表单：登录现在是账号密码，没法在一次调用里问完，
+// 所以这里返回 false 是"还没登录"，调用方提示后用户自己回来重试。
 async function ensureArtifactAccountConnected(): Promise<boolean> {
   const state = useAppStore.getState()
   if (state.orcaProfileAuthStatus?.state === 'connected') {
     return true
   }
-  return (await state.connectCurrentOrcaProfile())?.status === 'connected'
+  state.openOrcaAccountSettings()
+  return false
 }
 
 async function reconnectArtifactAccount(): Promise<boolean> {
-  return (await useAppStore.getState().connectCurrentOrcaProfile())?.status === 'connected'
+  return ensureArtifactAccountConnected()
 }
 
 function showArtifactPublishedToast(result: ArtifactPublishResult): void {

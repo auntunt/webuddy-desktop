@@ -8,12 +8,9 @@ import type { OrcaCloudSession } from './profile-cloud-session-store'
 import type { OrcaCloudSessionExchangeResponse } from './profile-cloud-session-exchange'
 import { cancelUnreadResponseBody } from '../lib/unread-response-body'
 
-type ExchangeCodeArgs = {
-  code: string
-  codeVerifier: string
-  nonce: string
-  redirectUri: string
-  state: string
+type SignInArgs = {
+  username: string
+  password: string
   localProfileId: string
 }
 
@@ -198,17 +195,21 @@ async function postJson<T>(url: string, body: unknown, options?: PostJsonOptions
   return (await response.json()) as T
 }
 
-export async function exchangeOrcaCloudAuthCode(
+/**
+ * 账号密码换会话。
+ *
+ * Why 不是授权码交换：上游客户端走 PKCE + 系统浏览器授权页，而我们的服务器
+ * 只有账号密码。凭证 POST 到 sessionEndpoint，响应仍是同一个会话交换体，
+ * 所以下游（存储、刷新、能力）一行都不用改。
+ */
+export async function signInOrcaCloudSession(
   config: OrcaCloudAuthConfig,
-  args: ExchangeCodeArgs
+  args: SignInArgs
 ): Promise<OrcaCloudSessionExchangeResponse> {
   return normalizeSessionResponse(
     await postJson(config.sessionEndpoint, {
-      code: args.code,
-      codeVerifier: args.codeVerifier,
-      nonce: args.nonce,
-      redirectUri: args.redirectUri,
-      state: args.state,
+      username: args.username,
+      password: args.password,
       localProfileId: args.localProfileId
     })
   )

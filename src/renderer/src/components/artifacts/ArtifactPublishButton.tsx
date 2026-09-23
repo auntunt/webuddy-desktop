@@ -35,7 +35,7 @@ export function ArtifactPublishButton({
   const lookupSequence = useRef(0)
   const popoverContentRef = useRef<HTMLDivElement>(null)
   const authStatus = useAppStore((state) => state.orcaProfileAuthStatus)
-  const connect = useAppStore((state) => state.connectCurrentOrcaProfile)
+  const openAccountSettings = useAppStore((state) => state.openOrcaAccountSettings)
   const openSettingsPage = useAppStore((state) => state.openSettingsPage)
   const openSettingsTarget = useAppStore((state) => state.openSettingsTarget)
   const settings = useAppStore((state) => state.settings)
@@ -184,7 +184,7 @@ export function ArtifactPublishButton({
                 variant="outline"
                 size="xs"
                 disabled={authStatus?.configured !== true}
-                onClick={() => void connect()}
+                onClick={openAccountSettings}
               >
                 {authStatus?.state === 'reconnect-required'
                   ? translate(

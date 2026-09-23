@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   handlers,
   createCloudLinkedOrcaProfileMock,
-  connectCurrentOrcaProfileMock,
+  signInCurrentOrcaProfileMock,
   getCurrentOrcaProfileAuthStatusMock,
   refreshCurrentOrcaProfileAuthMock,
   selectCurrentOrcaProfileOrgMock,
@@ -11,7 +11,7 @@ const {
 } = vi.hoisted(() => ({
   handlers: new Map<string, (_event: unknown, args?: unknown) => unknown>(),
   createCloudLinkedOrcaProfileMock: vi.fn(),
-  connectCurrentOrcaProfileMock: vi.fn(),
+  signInCurrentOrcaProfileMock: vi.fn(),
   getCurrentOrcaProfileAuthStatusMock: vi.fn(),
   refreshCurrentOrcaProfileAuthMock: vi.fn(),
   selectCurrentOrcaProfileOrgMock: vi.fn(),
@@ -47,10 +47,10 @@ vi.mock('../orca-profiles/profile-project-transfer', () => ({
 
 vi.mock('../orca-profiles/profile-cloud-service', () => ({
   createCloudLinkedOrcaProfile: createCloudLinkedOrcaProfileMock,
-  connectCurrentOrcaProfile: connectCurrentOrcaProfileMock,
   getCurrentOrcaProfileAuthStatus: getCurrentOrcaProfileAuthStatusMock,
   refreshCurrentOrcaProfileAuth: refreshCurrentOrcaProfileAuthMock,
   selectCurrentOrcaProfileOrg: selectCurrentOrcaProfileOrgMock,
+  signInCurrentOrcaProfile: signInCurrentOrcaProfileMock,
   signOutCurrentOrcaProfile: signOutCurrentOrcaProfileMock
 }))
 
@@ -64,7 +64,7 @@ describe('registerOrcaProfileHandlers auth channels', () => {
     installFakeAppEnvironment({ getPath: () => '/tmp/orca-user-data' })
     handlers.clear()
     createCloudLinkedOrcaProfileMock.mockReset()
-    connectCurrentOrcaProfileMock.mockReset()
+    signInCurrentOrcaProfileMock.mockReset()
     getCurrentOrcaProfileAuthStatusMock.mockReset()
     refreshCurrentOrcaProfileAuthMock.mockReset()
     selectCurrentOrcaProfileOrgMock.mockReset()
@@ -91,10 +91,10 @@ describe('registerOrcaProfileHandlers auth channels', () => {
     expect(getCurrentOrcaProfileAuthStatusMock).toHaveBeenCalledWith('/tmp/orca-user-data')
   })
 
-  it('connects and signs out the current profile through the cloud service', async () => {
-    const connectResult = { status: 'unconfigured', auth: { activeProfileId: 'local-default' } }
+  it('signs in with credentials and signs out the current profile through the cloud service', async () => {
+    const signInResult = { status: 'unconfigured', auth: { activeProfileId: 'local-default' } }
     const signOutResult = { status: 'signed-out', auth: { activeProfileId: 'local-default' } }
-    connectCurrentOrcaProfileMock.mockResolvedValue(connectResult)
+    signInCurrentOrcaProfileMock.mockResolvedValue(signInResult)
     signOutCurrentOrcaProfileMock.mockResolvedValue(signOutResult)
     registerOrcaProfileHandlers({
       flush: vi.fn(),
@@ -103,13 +103,38 @@ describe('registerOrcaProfileHandlers auth channels', () => {
     } as never)
 
     await expect(
-      Promise.resolve(handlers.get('orcaProfiles:connectCurrent')?.(null))
-    ).resolves.toBe(connectResult)
+      Promise.resolve(
+        handlers.get('orcaProfiles:signIn')?.(null, {
+          username: ' nina ',
+          password: 'correct-horse'
+        })
+      )
+    ).resolves.toBe(signInResult)
     await expect(
       Promise.resolve(handlers.get('orcaProfiles:signOutCurrent')?.(null))
     ).resolves.toBe(signOutResult)
-    expect(connectCurrentOrcaProfileMock).toHaveBeenCalledWith('/tmp/orca-user-data')
+    // Why the trimmed username but the untouched password: a leading/trailing
+    // space can be part of a password, and trimming it would fail the login.
+    expect(signInCurrentOrcaProfileMock).toHaveBeenCalledWith('/tmp/orca-user-data', {
+      username: 'nina',
+      password: 'correct-horse'
+    })
     expect(signOutCurrentOrcaProfileMock).toHaveBeenCalledWith('/tmp/orca-user-data')
+  })
+
+  it('rejects sign-in without both credentials', async () => {
+    registerOrcaProfileHandlers({
+      flush: vi.fn(),
+      freezeWrites: vi.fn(),
+      getSettings: () => ({})
+    } as never)
+
+    await expect(
+      Promise.resolve(
+        handlers.get('orcaProfiles:signIn')?.(null, { username: 'nina', password: '' })
+      )
+    ).rejects.toThrow('invalid_orca_profile_sign_in')
+    expect(signInCurrentOrcaProfileMock).not.toHaveBeenCalled()
   })
 
   it('refreshes profile auth through the cloud service', async () => {
