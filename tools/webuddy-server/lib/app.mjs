@@ -17,7 +17,7 @@ import {
   totals,
   countSessions
 } from './queries.mjs'
-import { isRouteAllowedForToken, resolveToken } from './auth.mjs'
+import { isRouteAllowedForToken } from './auth.mjs'
 import { handleAuthRoute } from './auth-routes.mjs'
 import { handleDesktopAuthRoute } from './desktop-auth-routes.mjs'
 import { listTodos, syncTodos } from './sync.mjs'
@@ -33,27 +33,7 @@ import {
 } from './skill-extraction.mjs'
 import { json, readBody, serveStatic } from './http-io.mjs'
 import { validate } from './ingest-validation.mjs'
-
-/** Resolve the caller's identity from a bearer token, or `?token=` for links. */
-function authenticate(db, req, url) {
-  const header = req.headers.authorization ?? ''
-  const bearer = header.startsWith('Bearer ') ? header.slice(7) : null
-  return resolveToken(db, bearer ?? url.searchParams.get('token'))
-}
-
-function filtersOf(url, auth) {
-  const q = url.searchParams
-  return {
-    // Members are pinned to their own rows; only admins see the whole team.
-    ownerId: auth.user.role === 'admin' ? undefined : auth.user.username,
-    user: q.get('user') || undefined,
-    agent: q.get('agent') || undefined,
-    project: q.get('project') || undefined,
-    from: q.get('from') || undefined,
-    to: q.get('to') || undefined,
-    q: q.get('q') || undefined
-  }
-}
+import { authenticate, filtersOf } from './request-context.mjs'
 
 /** `deps.relay` = { privateKey, kid, issuer, publicJwk }. */
 export function createRequestHandler({ db, relay, publicDir }) {
