@@ -18,6 +18,7 @@ type RankingCardProps = {
   activeKey: string | undefined
   label?: (key: string) => string
   onSelect: (key: string) => void
+  className?: string
 }
 
 /** Top-N bars; the rest sits behind an explicit "展开全部" instead of being silently cut. */
@@ -28,14 +29,15 @@ export function RankingCard({
   error,
   activeKey,
   label = asIs,
-  onSelect
+  onSelect,
+  className
 }: RankingCardProps) {
   const [expanded, setExpanded] = useState(false)
   const rows = (groups ?? []).filter((g): g is StatsGroup & { key: string } => g.key !== null)
   const visible = expanded ? rows : rows.slice(0, TOP)
   const max = Math.max(1, ...rows.map((r) => r.sessions))
   return (
-    <Card title={title}>
+    <Card title={title} className={className}>
       <QueryStatus isPending={isPending} error={error} isEmpty={rows.length === 0}>
         <ul
           className={cx('flex flex-col gap-0.5', expanded && 'max-h-[320px] overflow-y-auto pr-1')}

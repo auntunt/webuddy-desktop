@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiFetch } from '../api/client'
 import type { SessionDetail } from '../api/session-types'
@@ -26,6 +26,17 @@ function OverviewProbe() {
   return <p>overview{useLocation().search}</p>
 }
 
+const OTHER_KEY = 'dev-1::codex::s2::/Users/lina/.codex/sessions/y.jsonl'
+
+function OpenOther() {
+  const navigate = useNavigate()
+  return (
+    <button type="button" onClick={() => navigate(sessionPath(OTHER_KEY))}>
+      open-other
+    </button>
+  )
+}
+
 function renderDetail() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -35,6 +46,7 @@ function renderDetail() {
           <Route index element={<OverviewProbe />} />
           <Route path="sessions/:key" element={<SessionDetailPage />} />
         </Routes>
+        <OpenOther />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -64,6 +76,29 @@ describe('SessionDetailPage', () => {
     expect(pre.textContent).toHaveLength(TRANSCRIPT_PREVIEW_CHARS)
     await userEvent.setup().click(screen.getByRole('button', { name: /显示全部/ }))
     expect(screen.getByTestId('transcript').textContent?.endsWith('TAIL')).toBe(true)
+  })
+
+  it('states the preview limit in characters', async () => {
+    apiFetchMock.mockResolvedValue(detail('a'.repeat(TRANSCRIPT_PREVIEW_CHARS + 1)))
+    renderDetail()
+    expect(await screen.findByText(/先显示前 200 万字符/)).toBeInTheDocument()
+  })
+
+  it('does not carry "显示全部" over to the next session', async () => {
+    const body = `${'a'.repeat(TRANSCRIPT_PREVIEW_CHARS)}TAIL`
+    apiFetchMock.mockResolvedValue(detail(body))
+    renderDetail()
+    const user = userEvent.setup()
+    // Visit the other session once so it is cached and renders without a loading gap.
+    await screen.findByRole('button', { name: /显示全部/ })
+    await user.click(screen.getByRole('button', { name: 'open-other' }))
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenCalledWith(`/api/sessions/${encodeURIComponent(OTHER_KEY)}`)
+    )
+    await user.click(await screen.findByRole('button', { name: /返回/ }))
+    await user.click(await screen.findByRole('button', { name: /显示全部/ }))
+    await user.click(screen.getByRole('button', { name: 'open-other' }))
+    expect(await screen.findByRole('button', { name: /显示全部/ })).toBeInTheDocument()
   })
 
   it('explains a missing or hidden session', async () => {

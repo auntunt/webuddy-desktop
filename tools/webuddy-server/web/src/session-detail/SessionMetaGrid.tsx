@@ -60,9 +60,7 @@ export function SessionMetaGrid({ session }: { session: SessionDetail }) {
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {sectionsOf(session).map(([title, fields]) => (
         <section key={title} className="rounded-card border border-line bg-card p-4">
-          <h2 className="mb-2 text-[11px] font-semibold tracking-wider text-faint uppercase">
-            {title}
-          </h2>
+          <h2 className="mb-2 text-[11px] font-semibold tracking-wider text-faint">{title}</h2>
           <dl className="flex flex-col">
             {fields.map(([label, value]) => (
               <div

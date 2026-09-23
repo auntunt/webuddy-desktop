@@ -81,11 +81,11 @@ function me(role: Role): Me {
   }
 }
 
-function renderOverview(role: Role) {
+function renderOverview(role: Role, url = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/']}>
+      <MemoryRouter initialEntries={[url]}>
         <OverviewPage me={me(role)} />
       </MemoryRouter>
     </QueryClientProvider>
@@ -129,6 +129,12 @@ describe('OverviewPage', () => {
     expect(screen.queryByRole('heading', { name: '按人' })).not.toBeInTheDocument()
     expect(callsTo('/api/stats').map((q) => q?.by)).not.toContain('person')
     expect(callsTo('/api/insights')[0]?.user).toBeUndefined()
+  })
+
+  it('narrows the person options to the picked group', async () => {
+    renderOverview('admin', '/?group=g-a')
+    await waitFor(() => expect(callsTo('/api/facets')).toContainEqual({ group: 'g-a' }))
+    expect(callsTo('/api/facets')).not.toContainEqual(undefined)
   })
 
   it('filters by an agent when its ranking bar is clicked', async () => {

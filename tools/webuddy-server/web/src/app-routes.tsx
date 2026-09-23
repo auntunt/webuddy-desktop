@@ -1,14 +1,22 @@
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 import type { Me, Role } from './api/types'
 import { useAuth } from './auth/session'
 import { AppShell } from './layout/AppShell'
-import { AdminUsersPage } from './pages/AdminUsersPage'
-import { AnalysisPage } from './pages/AnalysisPage'
 import { LoginPage } from './pages/LoginPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { SessionDetailPage } from './pages/SessionDetailPage'
-import { SkillsPage } from './pages/SkillsPage'
+
+// Markdown rendering and admin screens are off the landing path; load them on first visit.
+const AnalysisPage = lazy(() =>
+  import('./pages/AnalysisPage').then((module) => ({ default: module.AnalysisPage }))
+)
+const SkillsPage = lazy(() =>
+  import('./pages/SkillsPage').then((module) => ({ default: module.SkillsPage }))
+)
+const AdminUsersPage = lazy(() =>
+  import('./pages/AdminUsersPage').then((module) => ({ default: module.AdminUsersPage }))
+)
 
 function FullScreenMessage({ children }: { children: ReactNode }) {
   return (

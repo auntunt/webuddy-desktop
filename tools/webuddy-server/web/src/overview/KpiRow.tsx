@@ -67,9 +67,7 @@ export function KpiRow({
           title={kpi.title}
           className="rounded-card border border-line bg-card px-4 py-3.5"
         >
-          <h2 className="text-[11px] font-semibold tracking-wider text-faint uppercase">
-            {kpi.label}
-          </h2>
+          <h2 className="text-[11px] font-semibold tracking-wider text-faint">{kpi.label}</h2>
           <p className="mt-1.5 font-mono text-2xl font-semibold tracking-tight tabular-nums">
             {kpi.value}
           </p>

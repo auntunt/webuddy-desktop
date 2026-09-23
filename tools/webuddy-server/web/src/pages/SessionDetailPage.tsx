@@ -46,10 +46,10 @@ export function SessionDetailPage() {
         <>
           <SessionMetaGrid session={s} />
           <section className="flex flex-col gap-2">
-            <h2 className="text-[11px] font-semibold tracking-wider text-faint uppercase">
+            <h2 className="text-[11px] font-semibold tracking-wider text-faint">
               会话正文（已脱敏）
             </h2>
-            <TranscriptView body={s.transcript_body} bytes={s.transcript_bytes} />
+            <TranscriptView key={key} body={s.transcript_body} bytes={s.transcript_bytes} />
           </section>
         </>
       )}

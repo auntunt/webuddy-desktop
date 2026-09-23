@@ -1,7 +1,9 @@
 import { LogOut } from 'lucide-react'
+import { Suspense } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import type { Me, Role } from '../api/types'
 import { useAuth } from '../auth/session'
+import { StatusLine } from '../components/QueryStatus'
 import { Button } from '../components/ui/Button'
 import { cx } from '../components/ui/class-names'
 
@@ -85,7 +87,9 @@ export function AppShell({ me }: { me: Me }) {
         </div>
       </header>
       <main className="mx-auto max-w-[1320px] px-5 pt-5 pb-24">
-        <Outlet />
+        <Suspense fallback={<StatusLine>加载中…</StatusLine>}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   )

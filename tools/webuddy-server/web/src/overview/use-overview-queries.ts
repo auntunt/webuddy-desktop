@@ -13,10 +13,12 @@ type ApiQuery = Record<string, string>
 
 export const SESSIONS_PAGE_SIZE = 50
 
-export function useFacets() {
+/** `group` narrows the options to that group's members (admin picking a group). */
+export function useFacets(group?: string) {
+  const query = group ? { group } : undefined
   return useQuery({
-    queryKey: ['facets'],
-    queryFn: () => apiFetch<FacetsResponse>('/api/facets'),
+    queryKey: ['facets', group ?? null],
+    queryFn: () => apiFetch<FacetsResponse>('/api/facets', { query }),
     staleTime: 60_000
   })
 }

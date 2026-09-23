@@ -3,8 +3,8 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
 import { formatBytes } from '../format/number-format'
 
-/** ~2 MB of text; rendering a multi-MB <pre> at once freezes the tab for seconds. */
-export const TRANSCRIPT_PREVIEW_CHARS = 2 * 1024 * 1024
+/** Rendering a multi-MB <pre> at once freezes the tab for seconds. */
+export const TRANSCRIPT_PREVIEW_CHARS = 2_000_000
 
 export function TranscriptView({ body, bytes }: { body: string | null; bytes: number | null }) {
   const [showAll, setShowAll] = useState(false)
@@ -16,7 +16,7 @@ export function TranscriptView({ body, bytes }: { body: string | null; bytes: nu
     <div className="flex flex-col gap-2">
       {clipped && (
         <div className="flex items-center gap-3 rounded-card border border-line bg-card px-3 py-2 text-xs text-dim">
-          正文较长（{formatBytes(bytes ?? body.length)}），先显示前 2 MB。
+          正文较长（{formatBytes(bytes ?? body.length)}），先显示前 200 万字符。
           <Button size="sm" className="ml-auto" onClick={() => setShowAll(true)}>
             显示全部
           </Button>
