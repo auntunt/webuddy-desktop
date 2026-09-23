@@ -13,8 +13,8 @@ REMOTE_DIR="${REMOTE_DIR:-/home/Liyibin/services/webuddy-server}"
 PORT="${PORT:-8790}"
 NAME="${NAME:-webuddy-log}"
 ADMIN_USER="${ADMIN_USER:-admin}"
-# Why required: the first boot needs an account, and creating users requires one.
-ADMIN_PASSWORD="${ADMIN_PASSWORD:?set ADMIN_PASSWORD=<admin password>}"
+# Only needed on first boot (creating users requires an account); unset keeps the server's .env.
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -22,6 +22,7 @@ echo "== shipping code to $HOST:$REMOTE_DIR =="
 tar -C "$HERE" -czf - server.mjs lib public deploy package.json README.md Dockerfile docker-compose.yml \
   | ssh "$HOST" "mkdir -p '$REMOTE_DIR' && tar -xzf - -C '$REMOTE_DIR' && chmod +x '$REMOTE_DIR/deploy/'*.sh"
 
+if [ -n "$ADMIN_PASSWORD" ]; then
 echo "== updating server-side env (mode 600, merge — never clobber secrets) =="
 # Why merge instead of overwrite: this file also holds the model credentials.
 # Rewriting it wholesale silently disabled analysis on every deploy.
@@ -33,6 +34,9 @@ ADMIN_USER="$ADMIN_USER" ADMIN_PASSWORD="$ADMIN_PASSWORD" REMOTE_DIR="$REMOTE_DI
     printf "WEBUDDY_ADMIN_PASSWORD=%s\n" "$ADMIN_PASSWORD" >> "$ENVF.tmp"
     chmod 600 "$ENVF.tmp"; mv "$ENVF.tmp" "$ENVF"
     echo "  env keys kept: $(grep -c . "$ENVF") lines"'
+else
+  echo "== ADMIN_PASSWORD unset: keeping server-side .env as is =="
+fi
 
 echo "== retiring the earlier PM2 process (if it is still around) =="
 ssh "$HOST" "pm2 delete '$NAME' >/dev/null 2>&1 && pm2 save >/dev/null && echo '  pm2 process removed' || echo '  no pm2 process'"
