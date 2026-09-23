@@ -1,0 +1,45 @@
+@import 'tailwindcss';
+
+/* Dark Vercel look carried over from the old dashboard: pure black, 1px hairlines, one accent. */
+@theme {
+  --color-bg: #000;
+  --color-fg: #ededed;
+  --color-dim: #8f8f8f;
+  --color-faint: #666;
+  --color-fg-hover: #ccc;
+  --color-line: #262626;
+  --color-line-strong: #333;
+  --color-line-hover: #4a4a4a;
+  --color-card: #0a0a0a;
+  --color-hover: #161616;
+  --color-raised: #1f1f1f;
+  --color-accent: #0070f3;
+  --color-ok: #45a557;
+  --color-warn: #f5a623;
+  --color-bad: #e5484d;
+  --color-bad-soft: #1a0d0d;
+  --color-overlay: rgb(0 0 0 / 0.7);
+  --color-topbar: rgb(0 0 0 / 0.8);
+
+  --radius-card: 8px;
+  --radius-control: 6px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'PingFang SC', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-bg);
+  }
+  body {
+    margin: 0;
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'tnum';
+  }
+}

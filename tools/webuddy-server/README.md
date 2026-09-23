@@ -18,6 +18,20 @@ WEBUDDY_TOKEN=<你自己定一个> node server.mjs
 | `WEBUDDY_DATA` | `./data` | SQLite 存放目录 |
 | `WEBUDDY_ROLLUP_MS` | `600000` | 汇总重算间隔（10 分钟） |
 
+## 看板前端（`web/`）
+
+React + Vite + Tailwind，构建产物写到 `public/`，由 `server.mjs` 托管（未知的无扩展名路径回退到 `index.html`）。
+
+```bash
+cd tools/webuddy-server/web
+npm ci
+npm run dev      # http://127.0.0.1:5173，/api 代理到 8787（WEBUDDY_API 可改）
+npm test         # vitest
+npm run build    # 类型检查 + 构建到 ../public
+```
+
+Docker 镜像在构建阶段自己跑 `npm run build`，运行时镜像仍然零第三方依赖。
+
 ## 采集端怎么接
 
 在每台开发机上：

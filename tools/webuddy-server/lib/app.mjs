@@ -58,7 +58,7 @@ export function createRequestHandler({ db, relay, publicDir }) {
       }
       // Why before authentication: everything the login screen itself loads.
       if (!route.startsWith('/api/')) {
-        if (await serveStatic(res, route, publicDir)) {
+        if (await serveStatic(req, res, route, publicDir)) {
           return
         }
         return json(res, 404, { error: 'not found' })

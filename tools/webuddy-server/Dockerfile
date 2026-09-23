@@ -1,13 +1,22 @@
 # webuddy-server — 零依赖 Node 服务，容器内只跑一个进程。
 # node:24 起 node:sqlite 无需 flag（22.5~23.3 需要 --experimental-sqlite）。
+
+# 阶段一：构建 React 看板（依赖只存在于这一阶段）
+FROM node:24-alpine AS web
+WORKDIR /src/web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build   # 产物写入 /src/public
+
+# 阶段二：运行时仍然零第三方依赖，只拷源码和构建产物
 FROM node:24-alpine
 
 WORKDIR /app
 
-# 无第三方依赖，只拷源码
 COPY server.mjs package.json ./
 COPY lib ./lib
-COPY public ./public
+COPY --from=web /src/public ./public
 
 ENV WEBUDDY_HOST=0.0.0.0 \
     WEBUDDY_PORT=8790 \

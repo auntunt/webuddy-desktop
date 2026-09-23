@@ -19,7 +19,9 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "== shipping code to $HOST:$REMOTE_DIR =="
-tar -C "$HERE" -czf - server.mjs lib public deploy package.json README.md Dockerfile docker-compose.yml \
+# public/ is built inside the image from web/, so ship the sources and never local deps/builds.
+tar -C "$HERE" --exclude='web/node_modules' --exclude='web/dist' -czf - \
+  server.mjs lib web deploy package.json README.md Dockerfile docker-compose.yml \
   | ssh "$HOST" "mkdir -p '$REMOTE_DIR' && tar -xzf - -C '$REMOTE_DIR' && chmod +x '$REMOTE_DIR/deploy/'*.sh"
 
 if [ -n "$ADMIN_PASSWORD" ]; then

@@ -1,0 +1,4 @@
+web/node_modules/
+web/dist/
+# Root ignores lockfiles; the Docker build runs `npm ci` and needs this one.
+!web/package-lock.json
