@@ -6,19 +6,33 @@
  * client (dashboard, export, scheduled analysis).
  */
 
-/** Shared filter surface: every read endpoint takes the same four knobs. */
-export function buildWhere({ user, agent, project, from, to, q, ownerId } = {}) {
+/** Pushes `column IN (...)`; an empty list must match nothing, not everything. */
+function pushIn(clauses, params, column, values) {
+  if (values.length === 0) {
+    clauses.push('1 = 0')
+    return
+  }
+  clauses.push(`${column} IN (${values.map(() => '?').join(', ')})`)
+  params.push(...values)
+}
+
+/**
+ * Shared filter surface for every read endpoint. `visibleUsers` comes from
+ * resolveVisibleUsers (null = unrestricted); `group` is a username list.
+ */
+export function buildWhere({ visibleUsers, user, group, agent, project, from, to, q } = {}) {
   const clauses = []
   const params = []
-  // Why first and non-negotiable: a member's token must never be able to read
-  // another person's transcripts, whatever query parameters it sends.
-  if (ownerId) {
-    clauses.push('user_id = ?')
-    params.push(ownerId)
+  // Why first and non-negotiable: no query parameter may widen the caller's scope.
+  if (Array.isArray(visibleUsers)) {
+    pushIn(clauses, params, 'user_id', visibleUsers)
   }
   if (user) {
     clauses.push('user_id = ?')
     params.push(user)
+  }
+  if (Array.isArray(group)) {
+    pushIn(clauses, params, 'user_id', group)
   }
   if (agent) {
     clauses.push('agent_id = ?')
@@ -61,7 +75,7 @@ export function totals(db, filters) {
 }
 
 /** groupBy is a column allowlist, never interpolated user input. */
-const GROUPABLE = {
+export const GROUPABLE = {
   person: 'user_id',
   agent: 'agent_id',
   day: 'local_date',
@@ -169,9 +183,15 @@ export function computeRollups(db) {
 export function rollups(db, filters = {}) {
   const clauses = []
   const params = []
+  if (Array.isArray(filters.visibleUsers)) {
+    pushIn(clauses, params, 'user_id', filters.visibleUsers)
+  }
   if (filters.user) {
     clauses.push('user_id = ?')
     params.push(filters.user)
+  }
+  if (Array.isArray(filters.group)) {
+    pushIn(clauses, params, 'user_id', filters.group)
   }
   if (filters.agent) {
     clauses.push('agent_id = ?')

@@ -40,7 +40,8 @@ export function tokenDigest(token) {
   return createHash('sha256').update(String(token)).digest('hex')
 }
 
-export const PUBLIC_USER_COLUMNS = 'id, username, display_name, role, created_at, disabled'
+export const PUBLIC_USER_COLUMNS =
+  'id, username, display_name, role, group_id, created_at, disabled'
 
 export function createUser(db, { username, password, displayName, role = 'member' }) {
   const id = randomUUID()

@@ -12,6 +12,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
+import { ensureGroupSchema } from './group-schema.mjs'
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS sessions (
   dedupe_key          TEXT PRIMARY KEY,
@@ -181,6 +183,7 @@ export function openDb(path) {
   const db = new DatabaseSync(path)
   db.exec('PRAGMA journal_mode = WAL')
   db.exec(SCHEMA)
+  ensureGroupSchema(db)
   return db
 }
 

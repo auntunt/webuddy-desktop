@@ -1,6 +1,7 @@
 /** Per-request identity and list-filter derivation, shared across routes. */
 
 import { resolveToken } from './auth.mjs'
+import { groupMembers, resolveVisibleUsers } from './visibility.mjs'
 
 /** Resolve the caller's identity from a bearer token, or `?token=` for links. */
 export function authenticate(db, req, url) {
@@ -9,12 +10,13 @@ export function authenticate(db, req, url) {
   return resolveToken(db, bearer ?? url.searchParams.get('token'))
 }
 
-export function filtersOf(url, auth) {
+export function filtersOf(url, auth, db) {
   const q = url.searchParams
+  const groupId = q.get('group')
   return {
-    // Members are pinned to their own rows; only admins see the whole team.
-    ownerId: auth.user.role === 'admin' ? undefined : auth.user.username,
+    visibleUsers: resolveVisibleUsers(db, auth.user),
     user: q.get('user') || undefined,
+    group: groupId ? groupMembers(db, groupId) : undefined,
     agent: q.get('agent') || undefined,
     project: q.get('project') || undefined,
     from: q.get('from') || undefined,

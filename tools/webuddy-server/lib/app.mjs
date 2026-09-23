@@ -15,7 +15,8 @@ import {
   rollups,
   toCsv,
   totals,
-  countSessions
+  countSessions,
+  GROUPABLE
 } from './queries.mjs'
 import { isRouteAllowedForToken } from './auth.mjs'
 import { handleAuthRoute } from './auth-routes.mjs'
@@ -34,8 +35,11 @@ import {
 import { json, readBody, serveStatic } from './http-io.mjs'
 import { validate } from './ingest-validation.mjs'
 import { authenticate, filtersOf } from './request-context.mjs'
+import { canSeeUser, resolveOwner, resolveVisibleUsers } from './visibility.mjs'
 
 /** `deps.relay` = { privateKey, kid, issuer, publicJwk }. */
+const notFound = (res) => json(res, 404, { error: 'not found' })
+
 export function createRequestHandler({ db, relay, publicDir }) {
   return async function handleRequest(req, res) {
     const url = new URL(req.url, `http://${req.headers.host}`)
@@ -113,7 +117,7 @@ export function createRequestHandler({ db, relay, publicDir }) {
       }
 
       if (route === '/api/facets') {
-        return json(res, 200, facets(db, filtersOf(url, auth)))
+        return json(res, 200, facets(db, filtersOf(url, auth, db)))
       }
 
       // ---- 待办同步：个人数据，按设备游标增量 ----
@@ -141,23 +145,20 @@ export function createRequestHandler({ db, relay, publicDir }) {
       // ---- 个人工作情况分析 ----
       if (route === '/api/insights' && req.method === 'GET') {
         // 带上全套筛选（日期/项目/agent/关键词），否则切区间时 KPI 不会变。
-        const filters = filtersOf(url, auth)
-        const wanted = url.searchParams.get('user')
-        if (auth.user.role === 'admin') {
-          // 成员被 ownerId 钉在自己身上；管理员「没传 user」或「user=__all__」都表示全组。
-          // Why 不能默认成管理员自己：admin 这类账号名下往往 0 条数据，默认成自己会让
-          // KPI 全 0，而同页图表（走 /api/stats）却是全组 —— 同一屏两套口径，看着就像坏了。
-          filters.user = !wanted || wanted === '__all__' ? undefined : wanted
+        const filters = filtersOf(url, auth, db)
+        // Why __all__ 等同不传：admin 名下往往 0 条数据，默认成自己会让 KPI 与同页图表口径不一。
+        if (filters.user === '__all__') {
+          filters.user = undefined
         }
         return json(res, 200, workSummary(db, filters))
       }
 
       // ---- LLM 分析：默认 2 小时一轮，无新数据自动跳过 ----
       if (route === '/api/analysis/llm' && req.method === 'GET') {
-        const owner =
-          auth.user.role === 'admin' && url.searchParams.get('user') === '__all__'
-            ? null
-            : auth.user.username
+        const owner = resolveOwner(db, auth, url.searchParams.get('user'), { allowAll: true })
+        if (owner === undefined) {
+          return notFound(res)
+        }
         const latest = lastAnalysis(db, owner)
         return json(
           res,
@@ -179,19 +180,27 @@ export function createRequestHandler({ db, relay, publicDir }) {
       }
       if (route === '/api/analysis/llm/run' && req.method === 'POST') {
         // 手动触发也要过同一道"没新数据就不跑"的闸，否则手动就成了绕过省钱的口子。
-        const result = await runAnalysis(db, auth.user.username)
+        const owner = resolveOwner(db, auth, url.searchParams.get('user'), { allowAll: true })
+        if (owner === undefined) {
+          return notFound(res)
+        }
+        const result = await runAnalysis(db, owner)
         return json(res, 200, result)
       }
 
       // ---- skill 蒸馏：按人提炼可复用做法，可单条/整包下载 ----
       if (route === '/api/skills' && req.method === 'GET') {
-        const wanted = url.searchParams.get('user')
-        const owner = auth.user.role === 'admin' && wanted ? wanted : auth.user.username
+        const owner = resolveOwner(db, auth, url.searchParams.get('user'))
+        if (owner === undefined) {
+          return notFound(res)
+        }
         return json(res, 200, { userId: owner, items: listSkills(db, owner) })
       }
       if (route === '/api/skills/bundle' && req.method === 'GET') {
-        const wanted = url.searchParams.get('user')
-        const owner = auth.user.role === 'admin' && wanted ? wanted : auth.user.username
+        const owner = resolveOwner(db, auth, url.searchParams.get('user'))
+        if (owner === undefined) {
+          return notFound(res)
+        }
         const markdown = skillsAsBundle(owner, listSkills(db, owner))
         res.writeHead(200, {
           'content-type': 'text/markdown; charset=utf-8',
@@ -202,12 +211,9 @@ export function createRequestHandler({ db, relay, publicDir }) {
       if (route.startsWith('/api/skills/') && route.endsWith('/download') && req.method === 'GET') {
         const id = route.slice('/api/skills/'.length, -'/download'.length)
         const skill = getSkill(db, id)
-        if (!skill) {
-          return json(res, 404, { error: 'not found' })
-        }
-        // 别人的 skill 不给下 —— 同一道归属边界，skill 里会带原始项目路径。
-        if (auth.user.role !== 'admin' && skill.user_id !== auth.user.username) {
-          return json(res, 404, { error: 'not found' })
+        // 看不见的人的 skill 不给下 —— skill 里会带原始项目路径。
+        if (!skill || !canSeeUser(resolveVisibleUsers(db, auth.user), skill.user_id)) {
+          return notFound(res)
         }
         res.writeHead(200, {
           'content-type': 'text/markdown; charset=utf-8',
@@ -216,17 +222,27 @@ export function createRequestHandler({ db, relay, publicDir }) {
         return res.end(skillAsMarkdown(skill))
       }
       if (route === '/api/skills/extract' && req.method === 'POST') {
-        return json(res, 200, await extractSkills(db, auth.user.username))
+        const owner = resolveOwner(db, auth, url.searchParams.get('user'))
+        if (owner === undefined) {
+          return notFound(res)
+        }
+        return json(res, 200, await extractSkills(db, owner))
       }
 
       // relay token 的签发在 /api/desktop/relay-token：relayHostId 只能由主机公钥推导，
       // 那条路径才拿得到 hostPublicKeyB64。这里只留 relay 取公钥用的 JWKS。
 
       if (route === '/api/stats') {
-        const group = url.searchParams.get('group') || 'person'
         // 图表要能"展开全部"，所以分组上限得可调；500 是防止有人一次拉爆。
         const limit = Math.min(Number(url.searchParams.get('limit') || 50), 500)
-        const filters = filtersOf(url, auth)
+        const filters = filtersOf(url, auth, db)
+        // Why：旧看板用 `group` 传分组维度，与小组筛选同名；维度名优先按旧义解释。
+        const legacy = url.searchParams.get('group')
+        const isDimension = Object.hasOwn(GROUPABLE, legacy ?? '')
+        if (isDimension) {
+          filters.group = undefined
+        }
+        const group = url.searchParams.get('by') || (isDimension ? legacy : 'person')
         return json(res, 200, {
           totals: totals(db, filters),
           groups: groupBy(db, group, filters, limit)
@@ -236,7 +252,7 @@ export function createRequestHandler({ db, relay, publicDir }) {
       if (route === '/api/sessions') {
         const limit = Math.min(Number(url.searchParams.get('limit') || 50), 200)
         const offset = Math.max(Number(url.searchParams.get('offset') || 0), 0)
-        const filters = filtersOf(url, auth)
+        const filters = filtersOf(url, auth, db)
         // 带上 total，前端才能画翻页器（否则只能靠"下一页点不动了"来判断到底）。
         return json(res, 200, {
           items: listSessions(db, filters, limit, offset),
@@ -248,20 +264,19 @@ export function createRequestHandler({ db, relay, publicDir }) {
 
       if (route.startsWith('/api/sessions/')) {
         const session = getSession(db, decodeURIComponent(route.slice('/api/sessions/'.length)))
-        // Why check ownership here too: dedupe_key is guessable from a shared
-        // link, so fetching one row must go through the same boundary.
-        if (session && auth.user.role !== 'admin' && session.user_id !== auth.user.username) {
-          return json(res, 404, { error: 'not found' })
+        // Why check here too: dedupe_key is guessable from a shared link.
+        if (!session || !canSeeUser(resolveVisibleUsers(db, auth.user), session.user_id)) {
+          return notFound(res)
         }
-        return session ? json(res, 200, session) : json(res, 404, { error: 'not found' })
+        return json(res, 200, session)
       }
 
       if (route === '/api/analysis') {
-        return json(res, 200, { rollups: rollups(db, filtersOf(url, auth)) })
+        return json(res, 200, { rollups: rollups(db, filtersOf(url, auth, db)) })
       }
 
       if (route === '/api/export.csv' || route === '/api/export.json') {
-        const rows = listSessions(db, filtersOf(url, auth), 100000, 0)
+        const rows = listSessions(db, filtersOf(url, auth, db), 100000, 0)
         if (route.endsWith('.json')) {
           return json(res, 200, { items: rows })
         }
