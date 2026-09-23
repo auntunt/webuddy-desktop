@@ -10,7 +10,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -24,8 +24,8 @@ export type LastPush = {
 }
 
 export function collectorStateDir(env: NodeJS.ProcessEnv = process.env): string {
-  // 与采集器 lib/state.mjs 的解析顺序保持一致。
-  return env.WEBUDDY_AGENT_HOME || join(env.WEBUDDY_HOME || homedir(), '.webuddy-agent')
+  // Must match 采集器 lib/state.mjs exactly: WEBUDDY_AGENT_HOME || ~/.webuddy-agent.
+  return env.WEBUDDY_AGENT_HOME || join(homedir(), '.webuddy-agent')
 }
 
 export function collectorConfigPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -52,9 +52,11 @@ export async function writeCollectorConfig(
   config: Record<string, unknown>
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
-  // Why 600: the file holds a bearer token that can read the owner's transcripts.
-  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
-  await chmod(path, 0o600).catch(() => undefined)
+  // Atomic write: a crash or a concurrent reader mid-save must never observe a
+  // truncated or partially-written config.json holding the bearer token.
+  const tmp = `${path}.${process.pid}.tmp`
+  await writeFile(tmp, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
+  await rename(tmp, path)
 }
 
 export async function readLastPush(env: NodeJS.ProcessEnv = process.env): Promise<LastPush | null> {
