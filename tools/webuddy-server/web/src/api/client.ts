@@ -20,11 +20,13 @@ export type ApiFetchOptions = {
 
 type UnauthorizedHandler = () => void
 
-let onUnauthorized: UnauthorizedHandler | null = () => {
+export const defaultUnauthorizedHandler: UnauthorizedHandler = () => {
   if (window.location.pathname !== '/login') {
     window.location.assign('/login')
   }
 }
+
+let onUnauthorized: UnauthorizedHandler | null = defaultUnauthorizedHandler
 
 /** The app swaps in a router-aware handler; tests swap in a spy. */
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {

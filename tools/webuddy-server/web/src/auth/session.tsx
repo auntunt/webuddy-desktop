@@ -9,7 +9,7 @@ import {
   type ReactNode
 } from 'react'
 import { useNavigate } from 'react-router'
-import { apiFetch, setUnauthorizedHandler } from '../api/client'
+import { apiFetch, defaultUnauthorizedHandler, setUnauthorizedHandler } from '../api/client'
 import type { LoginResponse, Me, MeResponse } from '../api/types'
 import { clearToken, readToken, writeToken } from './token-store'
 
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout()
       navigate('/login', { replace: true })
     })
-    return () => setUnauthorizedHandler(null)
+    return () => setUnauthorizedHandler(defaultUnauthorizedHandler)
   }, [logout, navigate])
 
   const value = useMemo<AuthValue>(

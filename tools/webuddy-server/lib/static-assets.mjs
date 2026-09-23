@@ -47,34 +47,37 @@ async function send(res, file, cacheControl) {
   res.end(body)
 }
 
-/** Returns false when nothing was served, so the caller answers 404. */
-export async function serveStatic(req, res, route, publicDir) {
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    return false
-  }
-  const indexFile = resolve(publicDir, 'index.html')
-  const file = route === '/' ? indexFile : resolveInside(publicDir, route)
-  if (!file) {
-    return false
-  }
-  const ext = extname(file)
-  if (ext && TYPES[ext.toLowerCase()]) {
-    try {
-      const hashed = file.startsWith(resolve(publicDir, 'assets') + sep)
-      await send(res, file, file === indexFile || !hashed ? 'no-cache' : IMMUTABLE)
-      return true
-    } catch {
-      return false
-    }
-  }
-  // Any extension we don't serve (or a missing asset) is a real 404, not the SPA shell.
-  if (ext) {
-    return false
-  }
+async function tryFile(res, file, cacheControl) {
   try {
-    await send(res, indexFile, 'no-cache')
+    await send(res, file, cacheControl)
     return true
   } catch {
     return false
   }
+}
+
+/**
+ * Real file with a known type → served. Otherwise /assets/* → 404 (a missing chunk must
+ * not get HTML), and everything else → index.html: client routes like
+ * /sessions/<key> may contain dots, `::` or even `.claude/` segments.
+ * Returns false when nothing was served, so the caller answers 404.
+ */
+export async function serveStatic(req, res, route, publicDir) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    return false
+  }
+  const root = resolve(publicDir)
+  const indexFile = resolve(root, 'index.html')
+  // Rejected paths are never read; they can only be client routes.
+  const file = route === '/' ? indexFile : resolveInside(root, route)
+  if (file && TYPES[extname(file).toLowerCase()]) {
+    const hashed = file.startsWith(resolve(root, 'assets') + sep)
+    if (await tryFile(res, file, hashed ? IMMUTABLE : 'no-cache')) {
+      return true
+    }
+  }
+  if (route.startsWith('/assets/')) {
+    return false
+  }
+  return tryFile(res, indexFile, 'no-cache')
 }

@@ -65,17 +65,38 @@ test('extensionless client routes fall back to index.html', async () => {
   }
 })
 
-test('a missing file with an extension is a 404, not the SPA shell', async () => {
-  const res = await fetch(`${server.baseUrl}/assets/missing-000.js`)
+test('client routes with dots, dot-segments or extensions still get the SPA shell', async () => {
+  const key = 'lina::claude-code::.claude/projects/x/abc.jsonl'
+  for (const path of [`/sessions/${encodeURIComponent(key)}`, '/people/li.na', '/sessions/a.b.c']) {
+    const res = await fetch(`${server.baseUrl}${path}`)
+    assert.equal(res.status, 200, path)
+    assert.match(res.headers.get('content-type'), /^text\/html/, path)
+    assert.match(await res.text(), /id="root"/, path)
+  }
+})
+
+test('a missing asset under /assets/ is a 404, not the SPA shell', async () => {
+  const res = await fetch(`${server.baseUrl}/assets/missing.js`)
   assert.equal(res.status, 404)
 })
 
 test('path traversal never escapes publicDir', async () => {
-  for (const path of ['/../server.mjs', '/assets/../../server.mjs', '/%2e%2e/server.mjs']) {
+  for (const path of [
+    '/../server.mjs',
+    '/assets/../../server.mjs',
+    '/%2e%2e/server.mjs',
+    '/%2e%2e%2fserver.mjs',
+    '/assets/%2e%2e%2f%2e%2e%2fserver.mjs',
+    '/..%2f..%2fpackage.json'
+  ]) {
     const res = await rawGet(path)
-    assert.notEqual(res.status, 200, path)
-    assert.doesNotMatch(res.body, /createRequestHandler/, path)
+    assert.doesNotMatch(res.body, /createRequestHandler|webuddy-server/, path)
   }
+})
+
+test('/api itself is an API route, not the SPA shell', async () => {
+  const res = await fetch(`${server.baseUrl}/api`)
+  assert.match(res.headers.get('content-type'), /application\/json/)
 })
 
 test('unknown /api/ routes are still JSON 404s', async () => {

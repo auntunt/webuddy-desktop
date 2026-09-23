@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiFetch, setUnauthorizedHandler } from './client'
+import { ApiError, apiFetch, defaultUnauthorizedHandler, setUnauthorizedHandler } from './client'
 import { readToken, writeToken } from '../auth/token-store'
 
 function mockFetch(status: number, body: unknown) {
@@ -14,7 +14,7 @@ describe('apiFetch', () => {
   })
   afterEach(() => {
     vi.unstubAllGlobals()
-    setUnauthorizedHandler(null)
+    setUnauthorizedHandler(defaultUnauthorizedHandler)
   })
 
   it('sends the bearer token, JSON body and query string', async () => {
@@ -59,7 +59,7 @@ describe('apiFetch', () => {
 describe('apiFetch without a token', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    setUnauthorizedHandler(null)
+    setUnauthorizedHandler(defaultUnauthorizedHandler)
   })
 
   it('treats a 401 as a plain failure (wrong password), not an expired session', async () => {

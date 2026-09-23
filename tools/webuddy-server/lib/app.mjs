@@ -57,7 +57,7 @@ export function createRequestHandler({ db, relay, publicDir }) {
         return json(res, 200, jwksFor(relay.publicJwk, relay.kid))
       }
       // Why before authentication: everything the login screen itself loads.
-      if (!route.startsWith('/api/')) {
+      if (route !== '/api' && !route.startsWith('/api/')) {
         if (await serveStatic(req, res, route, publicDir)) {
           return
         }

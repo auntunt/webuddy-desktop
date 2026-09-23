@@ -15,7 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    // Only .test.tsx: the server's bare `node --test` also discovers *.test.ts and test/ dirs here.
+    // Tests must be *.test.tsx: bare `node --test` in the server dir would also run *.test.ts files.
     include: ['src/**/*.test.tsx'],
     setupFiles: ['./src/vitest-setup.ts']
   }
