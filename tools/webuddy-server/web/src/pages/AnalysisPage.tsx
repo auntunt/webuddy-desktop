@@ -15,7 +15,11 @@ import { PersonPicker } from '../people/PersonPicker'
 export function AnalysisPage({ me }: { me: Me }) {
   const { filters, setFilters } = useDashboardFilters()
   // A member only ever sees themself; a stray ?user= from a previous session must not leak through.
-  const user = me.role === 'member' ? me.username : filters.user || me.username
+  // An admin's own username is rarely in the data, so default to 全组 rather than their empty result.
+  const user =
+    me.role === 'member'
+      ? me.username
+      : filters.user || (me.role === 'admin' ? '__all__' : me.username)
   const facets = useFacets()
   const analysis = useAnalysis(user)
   const run = useRunAnalysis(user)

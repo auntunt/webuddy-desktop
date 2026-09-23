@@ -40,6 +40,37 @@ describe('PersonPicker', () => {
     expect(screen.getByRole('option', { name: '全组' })).toBeInTheDocument()
   })
 
+  it('adds the admin as an option when their username has no data yet', () => {
+    // "lina" (me.username) has no facets people entry — only other people show up.
+    const peopleWithoutSelf = [{ value: 'wang', n: 1 }]
+    render(
+      <PersonPicker
+        me={me('admin')}
+        people={peopleWithoutSelf}
+        value="lina"
+        onChange={vi.fn()}
+        allowAll
+      />
+    )
+    const select = screen.getByRole('combobox') as HTMLSelectElement
+    // "lina" (me.username) is not in `people`; the displayed option must still match the query.
+    expect(select.value).toBe('lina')
+    expect(screen.getByRole('option', { name: '我（lina）' })).toBeInTheDocument()
+  })
+
+  it('does not duplicate the admin when they already have data', () => {
+    render(
+      <PersonPicker
+        me={me('admin')}
+        people={[{ value: 'lina', n: 1 }]}
+        value="lina"
+        onChange={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('option', { name: '我（lina）' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('option', { name: 'lina' })).toHaveLength(1)
+  })
+
   it('calls onChange with the picked username', async () => {
     const onChange = vi.fn()
     render(

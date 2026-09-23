@@ -16,8 +16,13 @@ export function PersonPicker({ me, people, value, onChange, allowAll = false }: 
   if (me.role === 'member') {
     return null
   }
+  // An admin/lead's own username is often absent from the facets people list (no data of their
+  // own yet); without this the <select> silently shows the first option while querying a
+  // username that isn't rendered anywhere, so the displayed value no longer matches the query.
+  const hasSelf = people.some((p) => p.value === me.username)
   const options = [
     ...(me.role === 'admin' && allowAll ? [{ value: '__all__', label: '全组' }] : []),
+    ...(hasSelf ? [] : [{ value: me.username, label: `我（${me.username}）` }]),
     ...people.map((p) => ({ value: p.value, label: p.value }))
   ]
   return (

@@ -89,6 +89,25 @@ describe('SkillsPage', () => {
     expect(screen.queryByRole('option', { name: '全组' })).not.toBeInTheDocument()
   })
 
+  it('shows the admin as selected even when facets have no data for them yet', async () => {
+    apiFetchMock.mockImplementation(async (path, options) => {
+      if (path === '/api/facets') {
+        // The admin ("lina") has no skills of their own; only other people show up in facets.
+        return {
+          people: [{ value: 'wang', n: 3 }],
+          agents: [],
+          projects: [],
+          dates: { min: null, max: null }
+        }
+      }
+      return respond(path, options)
+    })
+    renderPage('admin')
+    const select = (await screen.findByLabelText('人员')) as HTMLSelectElement
+    expect(select.value).toBe('lina')
+    expect(screen.getByRole('option', { name: '我（lina）' })).toBeInTheDocument()
+  })
+
   it('extracts skills and shows the result message', async () => {
     apiFetchMock.mockImplementation(async (path, options) => {
       if (path === '/api/skills/extract') {

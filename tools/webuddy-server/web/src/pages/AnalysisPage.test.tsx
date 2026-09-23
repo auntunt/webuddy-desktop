@@ -89,6 +89,29 @@ describe('AnalysisPage', () => {
     expect(screen.getByRole('option', { name: '全组' })).toBeInTheDocument()
   })
 
+  it('defaults an admin to 全组 rather than their own empty result', async () => {
+    // The admin ("lina") has no sessions of their own; only other people show up in facets.
+    apiFetchMock.mockImplementation(async (path, options) => {
+      if (path === '/api/facets') {
+        return {
+          people: [{ value: 'wang', n: 3 }],
+          agents: [],
+          projects: [],
+          dates: { min: null, max: null }
+        }
+      }
+      return respond(path, options)
+    })
+    renderPage('admin')
+    const select = (await screen.findByLabelText('人员')) as HTMLSelectElement
+    expect(select.value).toBe('__all__')
+    expect(await screen.findByRole('heading', { name: '概览' })).toBeInTheDocument()
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/analysis/llm',
+      expect.objectContaining({ query: { user: '__all__' } })
+    )
+  })
+
   it('runs analysis and shows the skip message', async () => {
     apiFetchMock.mockImplementation(async (path, options) => {
       if (path === '/api/analysis/llm/run') {
