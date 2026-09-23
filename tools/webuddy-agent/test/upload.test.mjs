@@ -36,6 +36,7 @@ test('401 stops the push and reports authRejected without burning retries', asyn
   assert.equal(result.pushed, 0)
   assert.equal(calls, 1)
   assert.equal(readdirSync(paths.outbox).filter((f) => f.endsWith('.json')).length, 3)
+  assert.equal(readdirSync(paths.outbox).filter((f) => f.endsWith('.attempts')).length, 0)
 })
 
 test('successful push reports authRejected: false', async () => {

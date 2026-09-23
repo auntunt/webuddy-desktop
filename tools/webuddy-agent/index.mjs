@@ -318,8 +318,8 @@ async function main() {
   }
 
   if (command === 'push') {
-    const deviceId = await ensureDeviceId()
     try {
+      const deviceId = await ensureDeviceId()
       const result = await pushPending({
         endpoint: config.endpoint,
         token: config.token,
