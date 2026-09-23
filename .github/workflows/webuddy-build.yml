@@ -56,8 +56,9 @@ jobs:
           restore-keys: |
             electron-builder-mac-
 
+      # Why --cpu：runner 是 arm64，打 x64 时要把目标架构的原生依赖也装上。
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --cpu=current,${{ inputs.mac_arch }}
 
       # electron-builder's beforePack asserts out/mobile-web exists, and that
       # bundle resolves React Native/Expo from mobile/node_modules.
