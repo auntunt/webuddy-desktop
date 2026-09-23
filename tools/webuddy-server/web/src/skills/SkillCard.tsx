@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { useState } from 'react'
+import { buildQueryString } from '../api/client'
 import type { Skill } from '../api/skill-types'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -17,7 +18,7 @@ export function SkillCard({ skill, token }: { skill: Skill; token: string | null
           {skill.summary && <p className="mt-1 text-[12.5px] text-dim">{skill.summary}</p>}
         </div>
         <a
-          href={`/api/skills/${skill.id}/download?token=${encodeURIComponent(token ?? '')}`}
+          href={`/api/skills/${skill.id}/download${buildQueryString({ token })}`}
           download
           className="inline-flex items-center gap-1.5 rounded-control border border-line-strong bg-card px-2.5 py-1 text-xs text-fg transition-colors hover:border-line-hover hover:bg-hover"
         >

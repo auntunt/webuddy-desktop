@@ -28,4 +28,31 @@ describe('MarkdownView', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
     expect(screen.getByText(/正文/)).toBeInTheDocument()
   })
+
+  it('never renders a javascript:/data:/vbscript: href or src, case- and whitespace-insensitively', () => {
+    const { container } = render(
+      <MarkdownView
+        content={[
+          '[a](javascript:alert(1))',
+          '[b](data:text/html,<script>alert(1)</script>)',
+          '[c](vbscript:x)',
+          '[d]( JaVaScRiPt:alert(1))',
+          '![i](javascript:alert(1))'
+        ].join('\n\n')}
+      />
+    )
+    const dangerous = /^\s*(javascript|data|vbscript):/i
+    for (const el of container.querySelectorAll('a')) {
+      const href = el.getAttribute('href')
+      expect(href).not.toMatch(dangerous)
+    }
+    for (const el of container.querySelectorAll('img')) {
+      const src = el.getAttribute('src')
+      expect(src).not.toMatch(dangerous)
+    }
+    // The stripped links render as plain text, not live anchors.
+    expect(screen.queryByRole('link', { name: 'a' })).not.toBeInTheDocument()
+    expect(screen.getByText('a')).toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
 })

@@ -1,18 +1,27 @@
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { safeUrlTransform } from './safe-url-transform'
 
 // Model output is untrusted text: skipHtml (no rehype-raw) keeps raw HTML from rendering.
 const COMPONENTS: Components = {
-  a: ({ children, ...props }) => (
-    <a
-      {...props}
-      target="_blank"
-      rel="noreferrer"
-      className="text-accent underline underline-offset-2"
-    >
-      {children}
-    </a>
-  ),
+  // safeUrlTransform already strips unsafe hrefs to '': render plain text instead of a dead/empty anchor.
+  a: ({ children, href, ...props }) =>
+    href ? (
+      <a
+        {...props}
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="text-accent underline underline-offset-2"
+      >
+        {children}
+      </a>
+    ) : (
+      <>{children}</>
+    ),
+  // Same rule as links: an unsafe or missing src renders nothing rather than a broken <img>.
+  img: ({ src, alt }) =>
+    src ? <img src={src} alt={alt} className="max-w-full rounded-control" /> : null,
   h1: ({ children }) => <h3 className="text-[15px] font-semibold">{children}</h3>,
   h2: ({ children }) => <h4 className="text-sm font-semibold">{children}</h4>,
   h3: ({ children }) => <h5 className="text-sm font-medium">{children}</h5>,
@@ -32,7 +41,12 @@ const COMPONENTS: Components = {
 export function MarkdownView({ content }: { content: string }) {
   return (
     <div className="flex flex-col gap-2 text-[13.5px] leading-[1.85] text-fg">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={COMPONENTS}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        skipHtml
+        urlTransform={safeUrlTransform}
+        components={COMPONENTS}
+      >
         {content}
       </ReactMarkdown>
     </div>
