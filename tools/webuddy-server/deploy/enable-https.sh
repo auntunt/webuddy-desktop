@@ -34,4 +34,4 @@ certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --redirect --keep-unt
 echo "== verifying TLS =="
 curl -fsS "https://$DOMAIN/api/health"
 echo
-echo "done. dashboard: https://$DOMAIN/?token=<TOKEN>"
+echo "done. dashboard: https://$DOMAIN/"

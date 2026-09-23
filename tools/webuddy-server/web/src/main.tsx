@@ -4,8 +4,13 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import { ApiError } from './api/client'
 import { AppRoutes } from './app-routes'
+import { bootstrapLegacyTokenFromUrl } from './auth/bootstrap-legacy-token'
 import { AuthProvider } from './auth/session'
 import './index.css'
+
+// Must run before BrowserRouter reads the URL, so an old ?token= bookmark never
+// shows up in a route or a redirect.
+bootstrapLegacyTokenFromUrl()
 
 const queryClient = new QueryClient({
   defaultOptions: {
