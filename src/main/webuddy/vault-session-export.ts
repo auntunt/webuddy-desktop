@@ -26,12 +26,14 @@ import type { AiVaultSession } from '../../shared/ai-vault-types'
 import type { AiVaultConversationResult } from '../ai-vault/session-conversation-window'
 
 export const VAULT_EXPORT_SESSION_LIMIT = 200
+export const VAULT_EXPORT_READ_TIMEOUT_MS = 60_000
 
 export type VaultSessionExportDeps = {
   stateDir: string
   homeDir: string
   timeZone?: string
   limit?: number
+  readTimeoutMs?: number
   listSessions: () => Promise<AiVaultSession[]>
   listSubagents: (parent: AiVaultSession) => Promise<AiVaultSession[]>
   readConversation: (session: AiVaultSession) => Promise<AiVaultConversationResult>
@@ -121,15 +123,29 @@ function openManifestWriter(stream: Writable): ManifestWriter {
   }
 }
 
+/** Rejects after `ms`; the underlying read is abandoned, not cancelled. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('vault_conversation_read_timeout')), ms)
+    timer.unref?.()
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 export async function exportVaultSessions(
   deps: VaultSessionExportDeps
 ): Promise<VaultSessionExportResult> {
   const limit = deps.limit ?? VAULT_EXPORT_SESSION_LIMIT
+  const manifestPath = vaultManifestPath(deps.stateDir)
+  // Fixed name: passes are single-flight, so a crashed pass's tmp is just overwritten.
+  const tmpPath = `${manifestPath}.tmp`
+  // Why: a pass killed mid-scan leaves pre-redaction transcript text on disk.
+  await Promise.all([rm(manifestPath, { force: true }), rm(tmpPath, { force: true })])
   const [cursor, failures] = await Promise.all([deps.loadCursor(), deps.loadFailures()])
   const listed = (await deps.listSessions()).filter((s) => !isVaultExportGivenUp(failures, s))
   const { changed } = diffVaultSessions(listed, cursor, { limit })
   const nextCursor: VaultCursorMap = new Map(cursor)
-  const manifestPath = vaultManifestPath(deps.stateDir)
   const commit = (): Promise<void> => deps.saveCursor(nextCursor)
   const dispose = (): Promise<void> => rm(manifestPath, { force: true })
   if (changed.length === 0) {
@@ -137,8 +153,6 @@ export async function exportVaultSessions(
   }
 
   await mkdir(deps.stateDir, { recursive: true })
-  // Fixed name: passes are single-flight, so a crashed pass's tmp is just overwritten.
-  const tmpPath = `${manifestPath}.tmp`
   const stream =
     deps.openManifestStream?.(tmpPath) ??
     createWriteStream(tmpPath, { encoding: 'utf8', mode: 0o600 })
@@ -149,7 +163,11 @@ export async function exportVaultSessions(
   const writeSession = async (session: AiVaultSession): Promise<boolean> => {
     let conversation: AiVaultConversationResult
     try {
-      conversation = await deps.readConversation(session)
+      // Why: a hung read would stall every later pass; a timeout counts toward the give-up limit.
+      conversation = await withTimeout(
+        deps.readConversation(session),
+        deps.readTimeoutMs ?? VAULT_EXPORT_READ_TIMEOUT_MS
+      )
     } catch {
       recordVaultExportFailure(failures, session)
       failuresDirty = true

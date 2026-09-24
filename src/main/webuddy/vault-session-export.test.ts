@@ -1,5 +1,5 @@
 import { vi, describe, expect, it } from 'vitest'
-import { readdir } from 'node:fs/promises'
+import { readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { exportVaultSessions } from './vault-session-export'
 import { vaultCursorKey, type VaultCursorMap } from './vault-session-cursor'
@@ -137,5 +137,26 @@ describe('exportVaultSessions', () => {
     })
     await exportVaultSessions(deps)
     expect(listSubagents).not.toHaveBeenCalled()
+  })
+
+  it('removes a manifest left by a previous crashed pass, even when nothing changed', async () => {
+    const { deps, stateDir } = await setup([])
+    await writeFile(join(stateDir, 'manifest.jsonl'), 'stale\n')
+    await writeFile(join(stateDir, 'manifest.jsonl.tmp'), 'stale\n')
+    await exportVaultSessions(deps)
+    expect(await readdir(stateDir)).toEqual([])
+  })
+
+  it('times out a hung conversation read and records it as a failure', async () => {
+    const hung = session({ sessionId: 'hung', filePath: '/Users/lina/.codex/hung.jsonl' })
+    const good = session({ sessionId: 'good' })
+    const { deps, savedFailures } = await setup([hung, good], {
+      readTimeoutMs: 10,
+      readConversation: (s) =>
+        s.sessionId === 'hung' ? new Promise(() => {}) : Promise.resolve(conversation)
+    })
+    const result = await exportVaultSessions(deps)
+    expect((await manifestLines(result.manifestPath)).map((l) => l.sessionId)).toEqual(['good'])
+    expect(savedFailures.at(-1)?.get(vaultCursorKey(hung))?.count).toBe(1)
   })
 })
