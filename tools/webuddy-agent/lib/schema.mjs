@@ -91,7 +91,7 @@ export function buildActor({ config, deviceId, hostname, osUser, platform }) {
 }
 
 /** Local calendar date (not UTC) — reports and retention are read in local time. */
-export function localDateOf(isoString, timeZoneOffsetMinutes) {
+export function localDateOf(isoString, timeZone = systemTimeZone()) {
   if (!isoString) {
     return null
   }
@@ -99,15 +99,26 @@ export function localDateOf(isoString, timeZoneOffsetMinutes) {
   if (Number.isNaN(date.getTime())) {
     return null
   }
-  // Shift the UTC instant by the local offset to read the local calendar day:
-  // UTC+8 must move *later*, so the offset is added, not subtracted.
-  const shifted = new Date(date.getTime() + timeZoneOffsetMinutes * 60_000)
-  return shifted.toISOString().slice(0, 10)
+  // Why Intl rather than today's UTC offset: a session on the other side of a
+  // DST switch has a different offset than "now".
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date)
 }
 
-export function timeZoneOffsetMinutes(now = new Date()) {
-  // getTimezoneOffset() is minutes *behind* UTC (UTC+8 => -480).
-  return -now.getTimezoneOffset()
+export function systemTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+export function isLocalDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false
+  }
+  const date = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
 }
 
 /**

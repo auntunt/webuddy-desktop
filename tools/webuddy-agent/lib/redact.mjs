@@ -36,8 +36,10 @@ export function maskPath(value, homeDir) {
   if (typeof value !== 'string' || !value) {
     return value ?? null
   }
-  const normalizedHome = homeDir?.replace(/\/+$/, '')
-  if (normalizedHome && (value === normalizedHome || value.startsWith(`${normalizedHome}/`))) {
+  const normalizedHome = homeDir?.replace(/[\\/]+$/, '')
+  const underHome =
+    value.startsWith(`${normalizedHome}/`) || value.startsWith(`${normalizedHome}\\`)
+  if (normalizedHome && (value === normalizedHome || underHome)) {
     return `~${value.slice(normalizedHome.length)}`
   }
   return value

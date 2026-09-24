@@ -74,3 +74,26 @@ test('successful push reports authRejected: false', async () => {
   assert.equal(result.pushed, 2)
   assert.equal(readdirSync(paths.outbox).filter((f) => f.endsWith('.json')).length, 0)
 })
+
+test('batch payload carries conversation when the outbox entry has one', async () => {
+  const { enqueue } = await import('../lib/upload.mjs')
+  rmSync(paths.outbox, { recursive: true, force: true })
+  const record = { agent: { id: 'a' }, session: { id: 's' } }
+  await enqueue(record, 'body', [{ role: 'user', text: 'hi', timestamp: null }])
+  await enqueue({ ...record, session: { id: 't' } }, 'body')
+  let body = null
+  await pushPending({
+    endpoint: 'http://x/api/ingest',
+    token: 't',
+    deviceId: 'd',
+    fetchImpl: async (_url, init) => {
+      body = JSON.parse(init.body)
+      return new Response('{}', { status: 200 })
+    }
+  })
+  const withConversation = body.records.filter((r) => 'conversation' in r)
+  assert.equal(withConversation.length, 1)
+  assert.deepEqual(withConversation[0].conversation, [
+    { role: 'user', text: 'hi', timestamp: null }
+  ])
+})

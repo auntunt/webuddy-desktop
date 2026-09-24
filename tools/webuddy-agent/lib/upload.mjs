@@ -45,9 +45,13 @@ export function packBatches(entries, limit = BATCH_LIMIT, maxBytes = BATCH_BYTES
   return batches
 }
 
-export async function enqueue(record, transcriptText = null) {
+export async function enqueue(record, transcriptText = null, conversation = null) {
   await mkdir(paths.outbox, { recursive: true })
   const payload = transcriptText === null ? { record } : { record, transcript: transcriptText }
+  // Optional and additive: servers that predate it read only `transcript`.
+  if (Array.isArray(conversation)) {
+    payload.conversation = conversation
+  }
   const name = `${Date.now()}-${record.agent.id}-${record.session.id}.json`.replace(
     /[^A-Za-z0-9._-]/g,
     '_'
