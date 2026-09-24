@@ -1,118 +1,25 @@
 import { test, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync
-} from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
+import { chmodSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
-const stateHome = mkdtempSync(join(tmpdir(), 'wba-state-'))
-const home = mkdtempSync(join(tmpdir(), 'wba-home-'))
-process.env.WEBUDDY_AGENT_HOME = stateHome
+import {
+  home,
+  config,
+  SECRET,
+  claudePath,
+  codexPath,
+  entryFor,
+  writeManifest,
+  outbox,
+  dedupeKey,
+  paths
+} from '../test-fixtures/manifest-fixture.mjs'
+
 const { scanManifest } = await import('../lib/manifest.mjs')
 const { scanDiscovered } = await import('../lib/scan.mjs')
 const { localDateOf } = await import('../lib/schema.mjs')
-const { paths } = await import('../lib/state.mjs')
-
-const INDEX = join(import.meta.dirname, '..', 'index.mjs')
-const config = {
-  userId: 'alice',
-  deviceLabel: '',
-  includeWorkspaces: [],
-  excludeWorkspaces: [],
-  maxTranscriptBytes: 32 * 1024 * 1024
-}
-const cwd = join(home, 'proj')
-const SECRET = 'sk-abcdefghijklmnopqrstuvwxyz0123'
-
-const claudePath = join(home, '.claude', 'projects', '-proj', 'c1.jsonl')
-const codexPath = join(home, '.codex', 'sessions', '2026', '03', '08', 'rollout-x-cx1.jsonl')
-
-function writeLines(path, entries) {
-  mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, `${entries.map((e) => JSON.stringify(e)).join('\n')}\n`)
-}
-
-writeLines(claudePath, [
-  {
-    type: 'user',
-    sessionId: 'claude-session-1',
-    cwd,
-    gitBranch: 'main',
-    timestamp: '2026-03-08T01:00:00Z',
-    message: { role: 'user', content: 'hi' }
-  },
-  {
-    type: 'assistant',
-    sessionId: 'claude-session-1',
-    timestamp: '2026-03-08T01:05:00Z',
-    message: { role: 'assistant', model: 'claude-x', content: 'hello' }
-  }
-])
-writeLines(codexPath, [
-  {
-    type: 'session_meta',
-    timestamp: '2026-03-08T02:00:00Z',
-    payload: { id: 'codex-session-1', cwd }
-  },
-  {
-    type: 'response_item',
-    timestamp: '2026-03-08T02:01:00Z',
-    payload: { type: 'message', role: 'user', content: [] }
-  }
-])
-
-function entryFor(filePath, agentId, sessionId, extra = {}) {
-  return {
-    agentId,
-    agentLabel: agentId === 'codex' ? 'Codex' : 'Claude Code',
-    sessionId,
-    filePath,
-    relPath: relative(home, filePath),
-    transcriptFormat: 'raw-file',
-    startedAt: '2026-03-08T01:00:00Z',
-    endedAt: '2026-03-08T01:05:00Z',
-    durationMs: 300000,
-    messageCount: 2,
-    turnCount: 1,
-    tokensTotal: 42,
-    model: 'm',
-    cwd,
-    branch: 'main',
-    localDate: '2026-03-08',
-    conversation: [{ role: 'user', text: `key ${SECRET}`, timestamp: '2026-03-08T01:00:00Z' }],
-    conversationTruncated: false,
-    ...extra
-  }
-}
-
-function writeManifest(entries) {
-  const path = join(stateHome, 'manifest.jsonl')
-  writeFileSync(path, `${entries.map((e) => JSON.stringify(e)).join('\n')}\n`)
-  return path
-}
-
-function outbox() {
-  try {
-    return readdirSync(paths.outbox)
-      .filter((n) => n.endsWith('.json'))
-      .map((n) => JSON.parse(readFileSync(join(paths.outbox, n), 'utf8')))
-  } catch {
-    return []
-  }
-}
-
-function dedupeKey(record) {
-  return [record.actor.deviceId, record.agent.id, record.session.id, record.transcript.relPath]
-}
 
 beforeEach(() => {
   rmSync(paths.outbox, { recursive: true, force: true })
@@ -207,42 +114,6 @@ test('legacy scan outbox payload is unchanged: record + transcript only', async 
   }
 })
 
-function cli(args) {
-  return spawnSync(process.execPath, [INDEX, ...args], {
-    env: { ...process.env, WEBUDDY_HOME: home, WEBUDDY_USER_ID: 'alice' },
-    encoding: 'utf8'
-  })
-}
-
-test('cli: per-entry problems exit 0 with a JSON summary; run-level failures exit non-zero', () => {
-  const good = entryFor(codexPath, 'codex', 'codex-session-1')
-  const { filePath: _omit, ...noFilePath } = entryFor(codexPath, 'codex', 'x')
-  const path = join(stateHome, 'mixed.jsonl')
-  writeFileSync(
-    path,
-    `{not json\n${JSON.stringify(noFilePath)}\n${JSON.stringify(
-      entryFor(join(home, 'gone.jsonl'), 'codex', 'gone')
-    )}\n${JSON.stringify(good)}\n`
-  )
-  const run = cli(['scan', '--manifest', path])
-  assert.equal(run.status, 0, run.stderr)
-  assert.deepEqual(JSON.parse(run.stdout), { emitted: 1, skipped: 0, invalid: 2, unreadable: 1 })
-  assert.equal(run.stderr.trim().split('\n').length, 3)
-
-  assert.notEqual(cli(['scan', '--manifest', join(stateHome, 'nope.jsonl')]).status, 0)
-  assert.equal(cli(['scan', '--manifest', '--json']).status, 2)
-
-  // Outbox unwritable: a file where the directory should be.
-  rmSync(paths.outbox, { recursive: true, force: true })
-  rmSync(paths.state, { force: true })
-  writeFileSync(paths.outbox, '')
-  try {
-    assert.notEqual(cli(['scan', '--manifest', writeManifest([good])]).status, 0)
-  } finally {
-    rmSync(paths.outbox, { force: true })
-  }
-})
-
 test('a file vanishing between stat and read counts as unreadable', async () => {
   const gone = join(home, 'vanished.jsonl')
   const manifestPath = writeManifest([
@@ -303,10 +174,4 @@ test('WSL entries mask cwd and filePath through the distro home', async () => {
   assert.equal(emitted[0].workspace.cwd, '~/proj')
   assert.equal(emitted[0].transcript.path, '~\\.codex\\s.jsonl')
   assert.ok(!JSON.stringify(emitted[0]).includes('bob'))
-})
-
-test('cli: legacy discovery scan prints a deprecation notice', () => {
-  const run = cli(['scan'])
-  assert.equal(run.status, 0, run.stderr)
-  assert.match(run.stderr, /deprecated/)
 })
