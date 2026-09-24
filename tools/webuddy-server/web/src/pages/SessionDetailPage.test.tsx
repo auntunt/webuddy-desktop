@@ -18,8 +18,15 @@ vi.mock('../api/client', async (importOriginal) => ({
 const apiFetchMock = vi.mocked(apiFetch)
 const KEY = 'dev-1::claude-code::s1::/Users/lina/.claude/projects/x.jsonl'
 
-function detail(body: string | null): SessionDetail {
-  return { ...sessionRow({ dedupe_key: KEY }), hostname: 'lina-mbp', transcript_body: body }
+function detail(body: string | null, overrides: Partial<SessionDetail> = {}): SessionDetail {
+  return {
+    ...sessionRow({ dedupe_key: KEY }),
+    hostname: 'lina-mbp',
+    transcript_body: body,
+    conversation: null,
+    conversation_truncated: false,
+    ...overrides
+  }
 }
 
 function OverviewProbe() {

@@ -88,7 +88,17 @@ export type SessionsPage = {
   offset: number
 }
 
+export type ConversationRole = 'user' | 'assistant' | 'system' | 'tool' | 'unknown'
+
+export type ConversationMessage = {
+  role: ConversationRole
+  text: string
+  timestamp: string | null
+}
+
 export type SessionDetail = SessionListItem & {
   hostname: string | null
   transcript_body: string | null
+  conversation: ConversationMessage[] | null
+  conversation_truncated: boolean
 }

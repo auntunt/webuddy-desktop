@@ -5,8 +5,8 @@ import { ApiError, apiFetch } from '../api/client'
 import type { SessionDetail } from '../api/session-types'
 import { StatusLine } from '../components/QueryStatus'
 import { Button } from '../components/ui/Button'
+import { ConversationView } from '../session-detail/ConversationView'
 import { SessionMetaGrid } from '../session-detail/SessionMetaGrid'
-import { TranscriptView } from '../session-detail/TranscriptView'
 
 function errorText(error: Error): string {
   // The server answers 404 for sessions outside your scope too, so don't claim which it was.
@@ -49,7 +49,13 @@ export function SessionDetailPage() {
             <h2 className="text-[11px] font-semibold tracking-wider text-faint">
               会话正文（已脱敏）
             </h2>
-            <TranscriptView key={key} body={s.transcript_body} bytes={s.transcript_bytes} />
+            <ConversationView
+              key={key}
+              conversation={s.conversation}
+              truncated={s.conversation_truncated}
+              transcriptBody={s.transcript_body}
+              transcriptBytes={s.transcript_bytes}
+            />
           </section>
         </>
       )}
