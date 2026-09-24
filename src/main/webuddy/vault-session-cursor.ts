@@ -31,7 +31,7 @@ export function vaultCursorKey(
   return `${session.agent}\0${session.filePath}\0${session.sessionId}`
 }
 
-function cursorValueFor(session: AiVaultSession): VaultCursorValue {
+export function vaultCursorValueFor(session: AiVaultSession): VaultCursorValue {
   return {
     modifiedAt: session.modifiedAt,
     updatedAt: session.updatedAt,
@@ -113,7 +113,7 @@ export function diffVaultSessions(
     .map((session) => ({ session, key: vaultCursorKey(session) }))
     .filter(({ session, key }) => {
       const existing = cursor.get(key)
-      return !existing || !cursorValuesEqual(existing, cursorValueFor(session))
+      return !existing || !cursorValuesEqual(existing, vaultCursorValueFor(session))
     })
     .sort((a, b) =>
       a.session.modifiedAt < b.session.modifiedAt
@@ -128,7 +128,7 @@ export function diffVaultSessions(
 
   const nextCursorEntries: VaultCursorMap = new Map(cursor)
   for (const { session, key } of taken) {
-    nextCursorEntries.set(key, cursorValueFor(session))
+    nextCursorEntries.set(key, vaultCursorValueFor(session))
   }
 
   return { changed: taken.map(({ session }) => session), nextCursorEntries }

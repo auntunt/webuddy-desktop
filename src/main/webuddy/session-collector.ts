@@ -12,6 +12,8 @@
 
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+import { exportVaultSessions, type VaultSessionExportResult } from './vault-session-export'
+import { productionVaultSessionExportDeps } from './vault-session-export-sources'
 
 const FIRST_RUN_DELAY_MS = 45_000
 const INTERVAL_MS = 30 * 60 * 1000
@@ -47,11 +49,12 @@ export function sessionCollectorEnv(base: NodeJS.ProcessEnv = process.env): Node
   }
 }
 
-function runStep(entry: string, step: string, env: NodeJS.ProcessEnv): Promise<void> {
+/** Resolves with the exit code; null when the collector failed to spawn or was killed. */
+function runStep(entry: string, args: string[], env: NodeJS.ProcessEnv): Promise<number | null> {
   return new Promise((resolve) => {
     // Why never reject: collection must not be able to break the editor. A
     // missing or failing collector leaves the app fully usable.
-    const child = spawn(process.execPath, [entry, step], {
+    const child = spawn(process.execPath, [entry, ...args], {
       env,
       stdio: 'ignore',
       windowsHide: true
@@ -60,18 +63,37 @@ function runStep(entry: string, step: string, env: NodeJS.ProcessEnv): Promise<v
     killTimer.unref?.()
     child.on('error', () => {
       clearTimeout(killTimer)
-      resolve()
+      resolve(null)
     })
-    child.on('exit', () => {
+    child.on('exit', (code) => {
       clearTimeout(killTimer)
-      resolve()
+      resolve(code)
     })
   })
 }
 
-async function collectOnce(entry: string, env: NodeJS.ProcessEnv): Promise<void> {
-  await runStep(entry, 'scan', env)
-  await runStep(entry, 'push', env)
+export type CollectionPassDeps = {
+  runStep: (args: string[]) => Promise<number | null>
+  exportSessions: () => Promise<VaultSessionExportResult>
+  log: (message: string, error: unknown) => void
+}
+
+/** One pass: export changed AI Vault sessions → `scan --manifest` → `push`. */
+export async function runCollectionPass(deps: CollectionPassDeps): Promise<void> {
+  try {
+    const exported = await deps.exportSessions()
+    if (exported.count > 0 && exported.manifestPath) {
+      const code = await deps.runStep(['scan', '--manifest', exported.manifestPath])
+      // Why only on 0: a failed scan must re-export the same sessions next pass.
+      if (code === 0) {
+        await exported.commit()
+      }
+    }
+  } catch (error) {
+    deps.log('[webuddy] session export failed', error)
+  }
+  // Always push so an outbox queued by earlier passes still drains.
+  await deps.runStep(['push'])
 }
 
 /**
@@ -101,7 +123,11 @@ export function startSessionCollection(
     inFlight = true
     try {
       await options.beforeRun?.()
-      await collectOnce(entry, env)
+      await runCollectionPass({
+        runStep: (args) => runStep(entry, args, env),
+        exportSessions: () => exportVaultSessions(productionVaultSessionExportDeps(env)),
+        log: (message, error) => console.warn(message, error)
+      })
     } finally {
       inFlight = false
     }
