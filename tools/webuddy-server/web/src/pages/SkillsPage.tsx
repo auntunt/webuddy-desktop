@@ -10,6 +10,7 @@ import { formatCount } from '../format/number-format'
 import { useFacets } from '../overview/use-overview-queries'
 import { PersonPicker } from '../people/PersonPicker'
 import { SkillCard } from '../skills/SkillCard'
+import { skillRunNotice } from '../skills/skill-run-notice'
 import { skillsRunMessage } from '../skills/skills-run-message'
 import { useExtractSkills, useSkills } from '../skills/use-skills-queries'
 
@@ -23,6 +24,7 @@ export function SkillsPage({ me }: { me: Me }) {
   const extract = useExtractSkills(user)
 
   const items = skills.data?.items ?? []
+  const runNotice = skillRunNotice(skills.data?.lastRun)
   const bundleHref = `/api/skills/bundle${buildQueryString({ user, token })}`
 
   return (
@@ -63,6 +65,16 @@ export function SkillsPage({ me }: { me: Me }) {
         }
       >
         <div className="flex flex-col gap-3">
+          {runNotice && (
+            <p
+              role={runNotice.tone === 'bad' ? 'alert' : 'status'}
+              className={
+                runNotice.tone === 'bad' ? 'text-[12px] text-bad' : 'text-[12px] text-faint'
+              }
+            >
+              {runNotice.text}
+            </p>
+          )}
           {extract.isPending && <StatusLine>提炼中，可能要一两分钟…</StatusLine>}
           {extract.isError && <StatusLine tone="bad">{extract.error.message}</StatusLine>}
           {extract.isSuccess && !extract.isPending && (

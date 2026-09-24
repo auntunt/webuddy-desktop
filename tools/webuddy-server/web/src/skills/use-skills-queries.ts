@@ -18,6 +18,7 @@ export function useExtractSkills(user: string) {
   return useMutation({
     mutationFn: () =>
       apiFetch<ExtractSkillsResult>('/api/skills/extract', { method: 'POST', query: { user } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: skillsQueryKey(user) })
+    // Failures are recorded server-side too, so refresh lastRun either way.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: skillsQueryKey(user) })
   })
 }

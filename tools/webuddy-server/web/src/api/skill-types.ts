@@ -13,7 +13,17 @@ export type Skill = {
   created_at: string
 }
 
-export type SkillsResponse = { userId: string; items: Skill[] }
+export type SkillRunStatus = 'ok' | 'empty' | 'parse-failed' | 'error'
+
+/** Latest extraction attempt; null before the first one. Older servers omit it. */
+export type SkillRun = {
+  status: SkillRunStatus
+  finishedAt: string | null
+  extracted: number
+  error: string | null
+}
+
+export type SkillsResponse = { userId: string; items: Skill[]; lastRun?: SkillRun | null }
 
 export type SkillExtractSkipReason = 'no-api-key' | 'no-new-data'
 

@@ -108,6 +108,47 @@ describe('SkillsPage', () => {
     expect(screen.getByRole('option', { name: '我（lina）' })).toBeInTheDocument()
   })
 
+  it('explains why the last run extracted nothing', async () => {
+    apiFetchMock.mockImplementation(async (path, options) => {
+      if (path === '/api/skills') {
+        return {
+          userId: 'lina',
+          items: [],
+          lastRun: {
+            status: 'error',
+            finishedAt: '2026-09-21T00:10:00.000Z',
+            extracted: 0,
+            error: 'timeout'
+          }
+        }
+      }
+      return respond(path, options)
+    })
+    renderPage('member')
+    expect(await screen.findByText(/调用失败：timeout/)).toBeInTheDocument()
+  })
+
+  it('shows no run notice when the last run was ok', async () => {
+    apiFetchMock.mockImplementation(async (path, options) => {
+      if (path === '/api/skills') {
+        return {
+          userId: 'lina',
+          items: [skill],
+          lastRun: {
+            status: 'ok',
+            finishedAt: '2026-09-21T00:10:00.000Z',
+            extracted: 1,
+            error: null
+          }
+        }
+      }
+      return respond(path, options)
+    })
+    renderPage('member')
+    await screen.findByText('并行改造迁移脚本')
+    expect(screen.queryByText(/最近一次提炼/)).not.toBeInTheDocument()
+  })
+
   it('extracts skills and shows the result message', async () => {
     apiFetchMock.mockImplementation(async (path, options) => {
       if (path === '/api/skills/extract') {
