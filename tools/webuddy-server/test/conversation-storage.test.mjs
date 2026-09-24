@@ -1,6 +1,11 @@
-import { test } from 'node:test'
+import { mock, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { parseConversationColumn } from '../lib/conversation-schema.mjs'
+import { openDb } from '../lib/db.mjs'
 import { startTestServer } from './harness.mjs'
 
 function sampleConversation() {
@@ -114,6 +119,70 @@ test('an oversized conversation is dropped but the record is still accepted', as
     assert.equal(detail.conversation, null)
   } finally {
     await server.close()
+  }
+})
+
+test('a resend with null token counts keeps the previously stored real counts', async () => {
+  const server = await startTestServer()
+  try {
+    server.createUser({ username: 'lina' })
+    const token = await server.login('lina')
+    const sessionId = randomUUID()
+    const first = sessionOverride(sessionId)
+    first.session.tokens = { input: 10, output: 20, total: 30 }
+    await server.ingestSession(token, first)
+
+    // A manifest-based re-upload of the same session reports only the total.
+    const resend = sessionOverride(sessionId)
+    resend.session.tokens = { input: null, output: null, total: 30 }
+    const res = await server.ingestSession(token, resend)
+    assert.equal((await res.json()).written, 1)
+
+    const list = await (await server.api(token, '/api/sessions')).json()
+    assert.equal(list.total, 1)
+    assert.equal(list.items[0].tokens_total, 30)
+
+    const key = list.items[0].dedupe_key
+    const detail = await (
+      await server.api(token, `/api/sessions/${encodeURIComponent(key)}`)
+    ).json()
+    assert.equal(detail.tokens_input, 10)
+    assert.equal(detail.tokens_output, 20)
+  } finally {
+    await server.close()
+  }
+})
+
+test('reopening the db on a populated file keeps conversation_json intact', async () => {
+  const path = join(mkdtempSync(join(tmpdir(), 'wb-conv-reopen-')), 'db.sqlite')
+  let db = openDb(path)
+  db.prepare(
+    `INSERT INTO sessions (dedupe_key, device_id, user_id, agent_id, session_id, conversation_json)
+     VALUES ('k1', 'd', 'lina', 'claude-code', 's1', ?)`
+  ).run(JSON.stringify({ messages: sampleConversation(), truncated: false }))
+  db.close()
+
+  // A second openDb (e.g. a server restart) must be idempotent and not touch existing data.
+  assert.doesNotThrow(() => {
+    db = openDb(path)
+  })
+  const row = db.prepare('SELECT conversation_json FROM sessions WHERE dedupe_key = ?').get('k1')
+  assert.deepEqual(
+    parseConversationColumn(row.conversation_json).conversation,
+    sampleConversation()
+  )
+  db.close()
+})
+
+test('a conversation_json that fails to parse warns once and falls back to null', () => {
+  const warn = mock.method(console, 'warn', () => {})
+  try {
+    const result = parseConversationColumn('{not valid json')
+    assert.equal(result.conversation, null)
+    assert.equal(result.truncated, false)
+    assert.equal(warn.mock.callCount(), 1)
+  } finally {
+    warn.mock.restore()
   }
 })
 

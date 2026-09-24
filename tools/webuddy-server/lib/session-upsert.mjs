@@ -108,9 +108,15 @@ function toRow(payload, receivedAt) {
 }
 
 // Why COALESCE here and only here: a re-upload of the same session (e.g. a
-// resend that dropped its conversation, or an older collector without an
-// agent version) must not blank out what a previous upload already stored.
-const COALESCE_ON_CONFLICT = new Set(['conversation_json', 'agent_version'])
+// resend that dropped its conversation, an older collector without an agent
+// version, or a manifest-based re-upload that only carries the token total)
+// must not blank out what a previous upload already stored.
+const COALESCE_ON_CONFLICT = new Set([
+  'conversation_json',
+  'agent_version',
+  'tokens_input',
+  'tokens_output'
+])
 
 export function upsertSessions(db, payloads, receivedAt) {
   const placeholders = COLUMNS.map(() => '?').join(', ')

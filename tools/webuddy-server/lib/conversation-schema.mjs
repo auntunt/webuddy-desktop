@@ -33,7 +33,8 @@ export function parseConversationColumn(text) {
   try {
     const parsed = JSON.parse(text)
     return { conversation: parsed.messages ?? null, truncated: Boolean(parsed.truncated) }
-  } catch {
+  } catch (error) {
+    console.warn('conversation_json failed to parse:', error?.message ?? error)
     return { conversation: null, truncated: false }
   }
 }
