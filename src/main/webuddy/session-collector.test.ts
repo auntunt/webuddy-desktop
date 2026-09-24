@@ -29,13 +29,15 @@ function passDeps(
 ): {
   steps: string[][]
   commit: ReturnType<typeof vi.fn>
+  dispose: ReturnType<typeof vi.fn>
   log: ReturnType<typeof vi.fn>
   run: () => Promise<void>
 } {
   const steps: string[][] = []
   const commit = vi.fn(async () => {})
+  const dispose = vi.fn(async () => {})
   const log = vi.fn()
-  const result = exported instanceof Error ? exported : { ...exported, commit }
+  const result = exported instanceof Error ? exported : { ...exported, commit, dispose }
   const run = (): Promise<void> =>
     runCollectionPass({
       runStep: async (args) => {
@@ -50,17 +52,30 @@ function passDeps(
       },
       log
     })
-  return { steps, commit, log, run }
+  return { steps, commit, dispose, log, run }
 }
 
 describe('runCollectionPass', () => {
-  const exported = { manifestPath: '/state/manifest.jsonl', count: 3, commit: async () => {} }
+  const exported = {
+    manifestPath: '/state/manifest.jsonl',
+    count: 3,
+    commit: async () => {},
+    dispose: async () => {}
+  }
 
   it('runs scan --manifest then push, and commits the cursor on exit 0', async () => {
     const { steps, commit, run } = passDeps(exported, 0)
     await run()
     expect(steps).toEqual([['scan', '--manifest', '/state/manifest.jsonl'], ['push']])
     expect(commit).toHaveBeenCalledOnce()
+  })
+
+  it('disposes the manifest after scan whether or not it succeeded', async () => {
+    for (const code of [0, 1]) {
+      const { dispose, run } = passDeps(exported, code)
+      await run()
+      expect(dispose).toHaveBeenCalledOnce()
+    }
   })
 
   it('does not commit the cursor when scan exits non-zero', async () => {
@@ -80,7 +95,8 @@ describe('runCollectionPass', () => {
     const { steps, commit, run } = passDeps({
       manifestPath: null,
       count: 0,
-      commit: async () => {}
+      commit: async () => {},
+      dispose: async () => {}
     })
     await run()
     expect(steps).toEqual([['push']])

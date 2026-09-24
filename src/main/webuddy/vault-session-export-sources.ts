@@ -2,6 +2,7 @@
 
 import { homedir } from 'node:os'
 import { collectorStateDir } from './collector-config'
+import { loadVaultExportFailures, saveVaultExportFailures } from './vault-export-failures'
 import { loadVaultCursor, saveVaultCursor } from './vault-session-cursor'
 import type { VaultSessionExportDeps } from './vault-session-export'
 import { listAiVaultSessions } from '../ai-vault/cached-session-list'
@@ -34,6 +35,8 @@ export function productionVaultSessionExportDeps(
         codexHome: session.codexHome
       }),
     loadCursor: () => loadVaultCursor(env),
-    saveCursor: (entries) => saveVaultCursor(entries, env)
+    saveCursor: (entries) => saveVaultCursor(entries, env),
+    loadFailures: () => loadVaultExportFailures(env),
+    saveFailures: (failures) => saveVaultExportFailures(failures, env)
   }
 }

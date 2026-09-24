@@ -1,85 +1,16 @@
-import { mkdtemp, readFile, readdir } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { vi, describe, expect, it } from 'vitest'
+import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
-import { exportVaultSessions, type VaultSessionExportDeps } from './vault-session-export'
+import { exportVaultSessions } from './vault-session-export'
 import { vaultCursorKey, type VaultCursorMap } from './vault-session-cursor'
-import type { AiVaultSession } from '../../shared/ai-vault-types'
-import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
-import type { AiVaultConversationResult } from '../ai-vault/session-conversation-window'
-
-function session(overrides: Partial<AiVaultSession> = {}): AiVaultSession {
-  return {
-    id: 'row',
-    executionHostId: LOCAL_EXECUTION_HOST_ID,
-    executionHostPlatform: 'darwin',
-    agent: 'codex',
-    sessionId: 'sess-1',
-    title: 't',
-    cwd: null,
-    branch: null,
-    model: null,
-    filePath: '/Users/lina/.codex/sessions/a.jsonl',
-    codexHome: null,
-    createdAt: null,
-    updatedAt: null,
-    modifiedAt: '2026-09-20T10:00:00.000Z',
-    messageCount: 1,
-    totalTokens: 10,
-    previewMessages: [],
-    queuedMessageCount: 0,
-    subagentTranscriptCount: 0,
-    resumeCommand: '',
-    subagent: null,
-    ...overrides
-  }
-}
-
-const conversation: AiVaultConversationResult = {
-  messages: [{ role: 'user', text: 'hi', timestamp: '2026-09-20T10:00:00.000Z' }],
-  truncated: false,
-  totalMessages: 1
-}
-
-async function setup(
-  sessions: AiVaultSession[],
-  overrides: Partial<VaultSessionExportDeps> = {}
-): Promise<{ deps: VaultSessionExportDeps; saved: VaultCursorMap[]; stateDir: string }> {
-  const stateDir = await mkdtemp(join(tmpdir(), 'wbs-vault-export-'))
-  const saved: VaultCursorMap[] = []
-  const deps: VaultSessionExportDeps = {
-    stateDir,
-    homeDir: '/Users/lina',
-    timeZone: 'UTC',
-    listSessions: async () => sessions,
-    listSubagents: async () => [],
-    readConversation: async () => conversation,
-    loadCursor: async () => new Map(),
-    saveCursor: async (entries) => {
-      saved.push(entries)
-    },
-    ...overrides
-  }
-  return { deps, saved, stateDir }
-}
-
-async function manifestLines(path: string | null): Promise<Record<string, unknown>[]> {
-  if (!path) {
-    return []
-  }
-  const raw = await readFile(path, 'utf8')
-  return raw
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      const parsed: unknown = JSON.parse(line)
-      return typeof parsed === 'object' && parsed !== null ? { ...parsed } : {}
-    })
-}
+import { conversation, manifestLines, session, setup } from './vault-session-export-test-fixture'
 
 describe('exportVaultSessions', () => {
   it('writes one JSON line per changed session to <stateDir>/manifest.jsonl', async () => {
-    const a = session({ sessionId: 'a', filePath: '/Users/lina/.codex/a.jsonl' })
+    const a = session({
+      sessionId: 'a',
+      filePath: '/Users/lina/.codex/a.jsonl'
+    })
     const b = session({
       sessionId: 'b',
       filePath: '/Users/lina/.codex/b.jsonl',
@@ -91,21 +22,34 @@ describe('exportVaultSessions', () => {
     expect(result.manifestPath).toBe(join(stateDir, 'manifest.jsonl'))
     const lines = await manifestLines(result.manifestPath)
     expect(lines.map((line) => line.sessionId)).toEqual(['b', 'a'])
-    expect(lines[0]).toMatchObject({ agentId: 'codex', relPath: '.codex/b.jsonl' })
+    expect(lines[0]).toMatchObject({
+      agentId: 'codex',
+      relPath: '.codex/b.jsonl'
+    })
     // Tmp file was renamed away, not left behind.
     expect((await readdir(stateDir)).sort()).toEqual(['manifest.jsonl'])
   })
 
   it('only exports sessions that changed since the cursor', async () => {
     const seen = session({ sessionId: 'seen' })
-    const fresh = session({ sessionId: 'fresh', filePath: '/Users/lina/.codex/f.jsonl' })
+    const fresh = session({
+      sessionId: 'fresh',
+      filePath: '/Users/lina/.codex/f.jsonl'
+    })
     const cursor: VaultCursorMap = new Map([
       [
         vaultCursorKey(seen),
-        { modifiedAt: seen.modifiedAt, updatedAt: null, messageCount: 1, totalTokens: 10 }
+        {
+          modifiedAt: seen.modifiedAt,
+          updatedAt: null,
+          messageCount: 1,
+          totalTokens: 10
+        }
       ]
     ])
-    const { deps } = await setup([seen, fresh], { loadCursor: async () => cursor })
+    const { deps } = await setup([seen, fresh], {
+      loadCursor: async () => cursor
+    })
     const result = await exportVaultSessions(deps)
     expect((await manifestLines(result.manifestPath)).map((l) => l.sessionId)).toEqual(['fresh'])
   })
@@ -144,7 +88,10 @@ describe('exportVaultSessions', () => {
   })
 
   it('skips a session whose conversation read fails and leaves it out of the cursor', async () => {
-    const bad = session({ sessionId: 'bad', filePath: '/Users/lina/.codex/bad.jsonl' })
+    const bad = session({
+      sessionId: 'bad',
+      filePath: '/Users/lina/.codex/bad.jsonl'
+    })
     const good = session({ sessionId: 'good' })
     const { deps, saved } = await setup([bad, good], {
       readConversation: async (s) => {
@@ -185,7 +132,9 @@ describe('exportVaultSessions', () => {
 
   it('does not list subagents for parents without subagent transcripts', async () => {
     const listSubagents = vi.fn(async () => [])
-    const { deps } = await setup([session({ agent: 'claude' })], { listSubagents })
+    const { deps } = await setup([session({ agent: 'claude' })], {
+      listSubagents
+    })
     await exportVaultSessions(deps)
     expect(listSubagents).not.toHaveBeenCalled()
   })

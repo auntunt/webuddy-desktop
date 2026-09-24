@@ -9,6 +9,12 @@ import { once } from 'node:events'
 import { createWriteStream } from 'node:fs'
 import { mkdir, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { Writable } from 'node:stream'
+import {
+  isVaultExportGivenUp,
+  recordVaultExportFailure,
+  type VaultExportFailureMap
+} from './vault-export-failures'
 import {
   diffVaultSessions,
   vaultCursorKey,
@@ -31,6 +37,9 @@ export type VaultSessionExportDeps = {
   readConversation: (session: AiVaultSession) => Promise<AiVaultConversationResult>
   loadCursor: () => Promise<VaultCursorMap>
   saveCursor: (entries: VaultCursorMap) => Promise<void>
+  loadFailures: () => Promise<VaultExportFailureMap>
+  saveFailures: (failures: VaultExportFailureMap) => Promise<void>
+  openManifestStream?: (path: string) => Writable
 }
 
 export type VaultSessionExportResult = {
@@ -38,27 +47,77 @@ export type VaultSessionExportResult = {
   count: number
   /** Persist the cursor; call only after the collector accepted the manifest. */
   commit: () => Promise<void>
+  /** Delete the manifest: it holds pre-redaction transcript text. */
+  dispose: () => Promise<void>
 }
 
 export function vaultManifestPath(stateDir: string): string {
   return join(stateDir, 'manifest.jsonl')
 }
 
+type SubagentGroup = { children: AiVaultSession[]; complete: boolean }
+
 async function changedSubagents(
   deps: VaultSessionExportDeps,
   parent: AiVaultSession,
   cursor: VaultCursorMap,
-  limit: number
-): Promise<AiVaultSession[]> {
+  failures: VaultExportFailureMap
+): Promise<SubagentGroup> {
   // Why claude only: AI Vault's main scan skips Claude's subagents/ dir, yet
   // the previous collector uploaded those transcripts.
-  if (parent.agent !== 'claude' || parent.subagentTranscriptCount <= 0 || limit <= 0) {
-    return []
+  if (parent.agent !== 'claude' || parent.subagentTranscriptCount <= 0) {
+    return { children: [], complete: true }
   }
   try {
-    return diffVaultSessions(await deps.listSubagents(parent), cursor, { limit }).changed
+    const listed = (await deps.listSubagents(parent)).filter(
+      (child) => !isVaultExportGivenUp(failures, child)
+    )
+    return {
+      children: diffVaultSessions(listed, cursor, {
+        limit: Number.POSITIVE_INFINITY
+      }).changed,
+      complete: true
+    }
   } catch {
-    return []
+    return { children: [], complete: false }
+  }
+}
+
+type ManifestWriter = {
+  write: (line: string) => Promise<void>
+  finish: () => Promise<void>
+}
+
+function openManifestWriter(stream: Writable): ManifestWriter {
+  // Why: an unobserved stream 'error' would crash the main process.
+  let streamError: unknown = null
+  stream.on('error', (error) => {
+    streamError = error
+  })
+  const settled = new Promise<void>((resolve) => {
+    stream.once('close', () => resolve())
+    stream.once('finish', () => resolve())
+    stream.once('error', () => resolve())
+  })
+  const throwIfFailed = (): void => {
+    if (streamError) {
+      throw streamError
+    }
+  }
+  return {
+    write: async (line) => {
+      throwIfFailed()
+      if (!stream.write(line)) {
+        await Promise.race([once(stream, 'drain'), settled])
+      }
+      throwIfFailed()
+    },
+    finish: async () => {
+      throwIfFailed()
+      stream.end()
+      await settled
+      throwIfFailed()
+    }
   }
 }
 
@@ -66,72 +125,87 @@ export async function exportVaultSessions(
   deps: VaultSessionExportDeps
 ): Promise<VaultSessionExportResult> {
   const limit = deps.limit ?? VAULT_EXPORT_SESSION_LIMIT
-  const cursor = await deps.loadCursor()
-  const { changed } = diffVaultSessions(await deps.listSessions(), cursor, { limit })
+  const [cursor, failures] = await Promise.all([deps.loadCursor(), deps.loadFailures()])
+  const listed = (await deps.listSessions()).filter((s) => !isVaultExportGivenUp(failures, s))
+  const { changed } = diffVaultSessions(listed, cursor, { limit })
   const nextCursor: VaultCursorMap = new Map(cursor)
+  const manifestPath = vaultManifestPath(deps.stateDir)
   const commit = (): Promise<void> => deps.saveCursor(nextCursor)
+  const dispose = (): Promise<void> => rm(manifestPath, { force: true })
   if (changed.length === 0) {
-    return { manifestPath: null, count: 0, commit }
+    return { manifestPath: null, count: 0, commit, dispose }
   }
 
   await mkdir(deps.stateDir, { recursive: true })
-  const manifestPath = vaultManifestPath(deps.stateDir)
-  const tmpPath = `${manifestPath}.${process.pid}.tmp`
-  const out = createWriteStream(tmpPath, { encoding: 'utf8', mode: 0o600 })
-  // Why: an unobserved stream 'error' would crash the main process.
-  let streamError: unknown = null
-  out.on('error', (error) => {
-    streamError = error
-  })
-  const closed = new Promise<void>((resolve) => out.once('close', () => resolve()))
+  // Fixed name: passes are single-flight, so a crashed pass's tmp is just overwritten.
+  const tmpPath = `${manifestPath}.tmp`
+  const stream =
+    deps.openManifestStream?.(tmpPath) ??
+    createWriteStream(tmpPath, { encoding: 'utf8', mode: 0o600 })
+  const writer = openManifestWriter(stream)
   let count = 0
+  let failuresDirty = false
 
-  const writeSession = async (session: AiVaultSession): Promise<void> => {
+  const writeSession = async (session: AiVaultSession): Promise<boolean> => {
     let conversation: AiVaultConversationResult
     try {
       conversation = await deps.readConversation(session)
     } catch {
-      // Left out of the cursor, so the next round retries it.
-      return
+      recordVaultExportFailure(failures, session)
+      failuresDirty = true
+      return false
     }
-    const line = `${JSON.stringify(
-      toManifestEntry(session, conversation, { homeDir: deps.homeDir, timeZone: deps.timeZone })
-    )}\n`
-    if (streamError) {
-      throw streamError
-    }
-    if (!out.write(line)) {
-      await once(out, 'drain')
-    }
-    nextCursor.set(vaultCursorKey(session), vaultCursorValueFor(session))
+    failuresDirty = failures.delete(vaultCursorKey(session)) || failuresDirty
+    const entry = toManifestEntry(session, conversation, {
+      homeDir: deps.homeDir,
+      timeZone: deps.timeZone
+    })
+    await writer.write(`${JSON.stringify(entry)}\n`)
     count += 1
+    return true
   }
 
   try {
     for (const parent of changed) {
-      if (count >= limit) {
+      const remaining = limit - count
+      if (remaining <= 0) {
         break
       }
-      await writeSession(parent)
-      for (const child of await changedSubagents(deps, parent, cursor, limit - count)) {
-        await writeSession(child)
+      const group = await changedSubagents(deps, parent, cursor, failures)
+      const fits = 1 + group.children.length <= remaining
+      // Why defer: a parent's cursor may only advance with all of its subagents,
+      // so a group that doesn't fit waits for a pass where it's first.
+      if (!fits && count > 0) {
+        continue
+      }
+      const parentWritten = await writeSession(parent)
+      let allChildrenWritten = group.complete && fits
+      for (const child of group.children.slice(0, Math.max(0, remaining - 1))) {
+        if (await writeSession(child)) {
+          nextCursor.set(vaultCursorKey(child), vaultCursorValueFor(child))
+        } else {
+          allChildrenWritten = false
+        }
+      }
+      if (parentWritten && allChildrenWritten) {
+        nextCursor.set(vaultCursorKey(parent), vaultCursorValueFor(parent))
       }
     }
-    out.end()
-    await closed
-    if (streamError) {
-      throw streamError
-    }
+    await writer.finish()
   } catch (error) {
-    out.destroy()
+    stream.destroy()
     await rm(tmpPath, { force: true })
     throw error
+  } finally {
+    if (failuresDirty) {
+      await deps.saveFailures(failures).catch(() => {})
+    }
   }
 
   if (count === 0) {
     await rm(tmpPath, { force: true })
-    return { manifestPath: null, count: 0, commit }
+    return { manifestPath: null, count: 0, commit, dispose }
   }
   await rename(tmpPath, manifestPath)
-  return { manifestPath, count, commit }
+  return { manifestPath, count, commit, dispose }
 }

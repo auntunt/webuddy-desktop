@@ -83,10 +83,14 @@ export async function runCollectionPass(deps: CollectionPassDeps): Promise<void>
   try {
     const exported = await deps.exportSessions()
     if (exported.count > 0 && exported.manifestPath) {
-      const code = await deps.runStep(['scan', '--manifest', exported.manifestPath])
-      // Why only on 0: a failed scan must re-export the same sessions next pass.
-      if (code === 0) {
-        await exported.commit()
+      try {
+        const code = await deps.runStep(['scan', '--manifest', exported.manifestPath])
+        // Why only on 0: a failed scan must re-export the same sessions next pass.
+        if (code === 0) {
+          await exported.commit()
+        }
+      } finally {
+        await exported.dispose()
       }
     }
   } catch (error) {

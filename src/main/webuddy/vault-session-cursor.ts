@@ -40,7 +40,7 @@ export function vaultCursorValueFor(session: AiVaultSession): VaultCursorValue {
   }
 }
 
-function cursorValuesEqual(a: VaultCursorValue, b: VaultCursorValue): boolean {
+export function vaultCursorValuesEqual(a: VaultCursorValue, b: VaultCursorValue): boolean {
   return (
     a.modifiedAt === b.modifiedAt &&
     a.updatedAt === b.updatedAt &&
@@ -49,7 +49,7 @@ function cursorValuesEqual(a: VaultCursorValue, b: VaultCursorValue): boolean {
   )
 }
 
-function isVaultCursorValue(value: unknown): value is VaultCursorValue {
+export function isVaultCursorValue(value: unknown): value is VaultCursorValue {
   if (typeof value !== 'object' || value === null) {
     return false
   }
@@ -113,7 +113,7 @@ export function diffVaultSessions(
     .map((session) => ({ session, key: vaultCursorKey(session) }))
     .filter(({ session, key }) => {
       const existing = cursor.get(key)
-      return !existing || !cursorValuesEqual(existing, vaultCursorValueFor(session))
+      return !existing || !vaultCursorValuesEqual(existing, vaultCursorValueFor(session))
     })
     .sort((a, b) =>
       a.session.modifiedAt < b.session.modifiedAt
