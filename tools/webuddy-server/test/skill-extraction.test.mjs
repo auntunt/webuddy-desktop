@@ -88,6 +88,37 @@ describe('extractSkills', () => {
   })
 })
 
+describe('extractSkills concurrency', () => {
+  it('skips a second extraction for the same user while one is in flight', async () => {
+    let release
+    const fetchMock = mock.method(
+      globalThis,
+      'fetch',
+      () =>
+        new Promise((resolve) => {
+          release = () =>
+            resolve(
+              new Response(JSON.stringify({ choices: [{ message: { content: '[]' } }], usage: {} }))
+            )
+        })
+    )
+    const first = extractSkills(db, 'lina', LLM_ENV)
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(await extractSkills(db, 'lina', LLM_ENV), {
+      skipped: 'in-progress',
+      userId: 'lina'
+    })
+    release()
+    assert.equal((await first).status, 'empty')
+    assert.equal(fetchMock.mock.callCount(), 1)
+    insertSession(db, { receivedAt: '2026-09-22T00:00:00Z' })
+    const again = extractSkills(db, 'lina', LLM_ENV)
+    await new Promise((resolve) => setImmediate(resolve))
+    release()
+    assert.equal((await again).status, 'empty')
+  })
+})
+
 describe('skill run bookkeeping', () => {
   it('falls back to the skills table watermark for data extracted before skill_runs existed', () => {
     db.prepare(`INSERT INTO skills (user_id, title, body, input_watermark, created_at)

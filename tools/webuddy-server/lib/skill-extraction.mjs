@@ -122,11 +122,28 @@ function storeSkills(db, userId, skills, meta) {
   }
 }
 
+// 手动 POST 和定时任务共用：同一人同时只跑一次，避免重复付费和重复入库。
+const inFlight = new WeakMap()
+
 /** 每次调模型都在 skill_runs 留一行；网络/超时失败记 error 后照常抛出。 */
 export async function extractSkills(db, userId, env = process.env) {
   if (!llmReady(env)) {
     return { skipped: 'no-api-key', userId }
   }
+  const running = inFlight.get(db) ?? new Set()
+  inFlight.set(db, running)
+  if (running.has(userId)) {
+    return { skipped: 'in-progress', userId }
+  }
+  running.add(userId)
+  try {
+    return await runExtraction(db, userId, env)
+  } finally {
+    running.delete(userId)
+  }
+}
+
+async function runExtraction(db, userId, env) {
   const current = watermarkFor(db, userId)
   const previous = lastSkillWatermark(db, userId)
   if (previous && previous === current) {
