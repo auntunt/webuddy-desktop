@@ -9,13 +9,9 @@ const TRUNCATED = new Set(['length', 'max_tokens'])
 
 const isSkill = (s) => Boolean(s && typeof s === 'object' && s.title && s.body)
 
-/** 去掉 ```json 围栏；截断的回复可能只有开头的围栏。 */
+/** 只剥首尾锚定的围栏 —— skill 正文里常有 ```bash 代码块，懒匹配会在那里截断。 */
 function unfence(text) {
-  const closed = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  if (closed) {
-    return closed[1]
-  }
-  return text.replace(/^[\s\S]*?```(?:json)?\s*/, '')
+  return text.replace(/^\s*```(?:json)?\s*/, '').replace(/\s*```\s*$/, '')
 }
 
 /** 扫描第一个 `[` 之后，返回所有闭合的顶层对象；字符串内的括号和转义都跳过。 */
@@ -66,33 +62,41 @@ export function completeArrayObjects(text) {
   return found
 }
 
-function parseWhole(candidate) {
-  const start = candidate.indexOf('[')
-  const end = candidate.lastIndexOf(']')
-  if (start === -1 || end < start) {
-    return null
-  }
+function parseArray(text) {
   try {
-    const parsed = JSON.parse(candidate.slice(start, end + 1))
+    const parsed = JSON.parse(text)
     return Array.isArray(parsed) ? parsed : null
   } catch {
     return null
   }
 }
 
+function parseWhole(raw) {
+  const direct = parseArray(raw)
+  if (direct) {
+    return direct
+  }
+  const candidate = unfence(raw)
+  const start = candidate.indexOf('[')
+  const end = candidate.lastIndexOf(']')
+  return start === -1 || end < start ? null : parseArray(candidate.slice(start, end + 1))
+}
+
 /**
- * `skills: null` 表示没能解析出任何东西（区别于模型明确返回的 `[]`）。
+ * `skills: null` 表示没能解析出任何可用 skill（区别于模型明确返回的 `[]`）。
  * `salvaged` 表示结果来自截断回复的抢救。
  */
 export function parseSkillReply(text, finishReason = null) {
-  const candidate = unfence(String(text ?? '')).trim()
+  const raw = String(text ?? '').trim()
   if (!TRUNCATED.has(finishReason)) {
-    const whole = parseWhole(candidate)
+    const whole = parseWhole(raw)
     if (whole) {
-      return { skills: whole.filter(isSkill), salvaged: false }
+      const skills = whole.filter(isSkill)
+      // 非空数组却一条都不合格（比如用了 name 而不是 title）是格式错，不是"没内容"。
+      return { skills: whole.length > 0 && skills.length === 0 ? null : skills, salvaged: false }
     }
   }
-  const rescued = completeArrayObjects(candidate).filter(isSkill)
+  const rescued = completeArrayObjects(raw).filter(isSkill)
   return rescued.length > 0
     ? { skills: rescued, salvaged: true }
     : { skills: null, salvaged: false }

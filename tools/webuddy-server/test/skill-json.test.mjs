@@ -52,6 +52,26 @@ describe('parseSkillReply', () => {
     assert.deepEqual(parseSkillReply('[]'), { skills: [], salvaged: false })
   })
 
+  it('keeps skills whose body contains a fenced code block, fenced or bare reply', () => {
+    const withCode = { title: 'Bash', body: '步骤：\n```bash\nnpm test\n```\n完成' }
+    const skills = [withCode, a]
+    const bare = JSON.stringify(skills)
+    assert.deepEqual(parseSkillReply(bare).skills, skills)
+    assert.deepEqual(parseSkillReply(`\`\`\`json\n${bare}\n\`\`\``).skills, skills)
+    assert.deepEqual(parseSkillReply(`好的：\n\`\`\`json\n${bare}\n\`\`\`\n以上。`).skills, skills)
+    assert.deepEqual(
+      parseSkillReply(`\`\`\`json\n[${JSON.stringify(withCode)},{"title":"cut`, 'length').skills,
+      [withCode]
+    )
+  })
+
+  it('treats a non-empty array with no valid skill as a parse failure', () => {
+    assert.deepEqual(parseSkillReply(JSON.stringify([{ name: 'x', body: 'y' }])), {
+      skills: null,
+      salvaged: false
+    })
+  })
+
   it('returns null skills when nothing parses', () => {
     assert.deepEqual(parseSkillReply('sorry, I cannot'), { skills: null, salvaged: false })
   })
