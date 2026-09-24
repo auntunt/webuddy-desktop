@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConversationMessage } from '../api/session-types'
 import { formatDateTime } from '../format/date-format'
 import { ConversationView, MESSAGE_COLLAPSE_CHARS } from './ConversationView'
@@ -70,7 +70,9 @@ describe('ConversationView', () => {
         transcriptBytes={null}
       />
     )
-    expect(screen.getByText(/仅显示开头 200 条与最近 1800 条/)).toBeInTheDocument()
+    expect(
+      screen.getByText('对话过长，已省略部分内容（保留开头与最近的消息，超长消息已截断）')
+    ).toBeInTheDocument()
   })
 
   it('falls back to the raw transcript when there is no conversation', () => {
@@ -114,5 +116,20 @@ describe('ConversationView', () => {
     )
     expect(screen.getByText('<script>alert(1)</script>')).toBeInTheDocument()
     expect(container.querySelector('script')).toBeNull()
+  })
+
+  it('renders identical repeated messages without duplicate-key warnings', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(
+      <ConversationView
+        conversation={[message({ text: '继续' }), message({ text: '继续' })]}
+        truncated={false}
+        transcriptBody={null}
+        transcriptBytes={null}
+      />
+    )
+    expect(screen.getAllByText('继续')).toHaveLength(2)
+    expect(errors).not.toHaveBeenCalled()
+    errors.mockRestore()
   })
 })

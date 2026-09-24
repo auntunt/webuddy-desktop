@@ -24,11 +24,6 @@ const ROLE_TONE: Record<ConversationRole, 'accent' | 'neutral' | 'warn'> = {
   unknown: 'neutral'
 }
 
-/** No stable id in the wire shape; role+timestamp+a text slice is unique enough in practice. */
-function messageKey(message: ConversationMessage): string {
-  return `${message.role}:${message.timestamp ?? ''}:${message.text.slice(0, 40)}`
-}
-
 function Message({ message }: { message: ConversationMessage }) {
   const [expanded, setExpanded] = useState(false)
   const long = message.text.length > MESSAGE_COLLAPSE_CHARS
@@ -84,7 +79,11 @@ export function ConversationView({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-3">
-        {truncated && <p className="text-xs text-dim">对话过长：仅显示开头 200 条与最近 1800 条</p>}
+        {truncated && (
+          <p className="text-xs text-dim">
+            对话过长，已省略部分内容（保留开头与最近的消息，超长消息已截断）
+          </p>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -98,8 +97,9 @@ export function ConversationView({
         <TranscriptView body={transcriptBody} bytes={transcriptBytes} />
       ) : (
         <div className="flex flex-col gap-2">
-          {conversation.map((message) => (
-            <Message key={messageKey(message)} message={message} />
+          {/* Index keys: the list is static per render and repeated messages ("继续") are common. */}
+          {conversation.map((message, index) => (
+            <Message key={`${index}:${message.role}`} message={message} />
           ))}
         </div>
       )}
