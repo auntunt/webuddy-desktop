@@ -7,7 +7,7 @@
 
 const PER_MESSAGE_CAP = 600
 const INJECTED_BLOCKS =
-  /<(system-reminder|environment_context|user_instructions|local-command-stdout)>[\s\S]*?<\/\1>/g
+  /<(system-reminder|environment_context|user_instructions|local-command-stdout|bash-input|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g
 
 function clean(text) {
   return String(text)
@@ -32,7 +32,12 @@ function textParts(content) {
 
 /** 一行 JSONL → { role, text }；不认识或不是对话正文就返回 null。 */
 function messageOf(entry) {
-  if ((entry?.type === 'user' || entry?.type === 'assistant') && !entry.isMeta && entry.message) {
+  const claudeTurn = entry?.type === 'user' || entry?.type === 'assistant'
+  // 压缩摘要是模型自己写的回顾，子代理对话不是本人的做法。
+  if (claudeTurn && (entry.isMeta || entry.isCompactSummary || entry.isSidechain)) {
+    return { role: entry.type, parts: [] }
+  }
+  if (claudeTurn && entry.message) {
     return { role: entry.type, parts: textParts(entry.message.content) }
   }
   // webuddy.conversation.v1：数据库型 agent 由采集端转成的 {role, text} 行。

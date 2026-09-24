@@ -76,6 +76,22 @@ describe('readableTranscript', () => {
     assert.equal(readableTranscript(codex), '用户：加个重试\n助手：已加上')
   })
 
+  it('skips compact summaries and sidechain lines and strips bash blocks', () => {
+    const body = jsonl(
+      { type: 'user', isCompactSummary: true, message: { role: 'user', content: 'SUMMARY' } },
+      { type: 'assistant', isSidechain: true, message: { role: 'assistant', content: 'SIDE' } },
+      {
+        type: 'user',
+        message: {
+          role: 'user',
+          content:
+            '<bash-input>ls</bash-input><bash-stdout>a\nb</bash-stdout><bash-stderr>oops</bash-stderr>看下目录'
+        }
+      }
+    )
+    assert.equal(readableTranscript(body), '用户：看下目录')
+  })
+
   it('reads webuddy.conversation.v1 lines ({role, text})', () => {
     const body = jsonl(
       { role: 'system', text: 'sys', timestamp: null },
