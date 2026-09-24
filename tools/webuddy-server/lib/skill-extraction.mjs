@@ -15,6 +15,7 @@ import { readableTranscript } from './transcript-text.mjs'
 
 // 显式给足：5 条 × 约 400 字的正文 + JSON 外壳；网关的推理模型也会吃掉一部分。
 const SKILL_MAX_TOKENS = 8000
+const CONVERSATION_FORMAT = 'webuddy.conversation.v1'
 
 const SYSTEM = [
   '你是研发方法论的提炼者。从给定的开发会话记录里，找出**可被别人复用**的具体做法。',
@@ -52,18 +53,29 @@ function material(db, userId, since, limit) {
  */
 function excerpts(db, userId, since, sessions, perSession = 3000, totalCap = 30000) {
   const rows = db
-    .prepare(`SELECT local_date, agent_id, cwd, transcript_body, conversation_json FROM sessions
+    .prepare(`SELECT local_date, agent_id, cwd, transcript_format, transcript_body, conversation_json
+              FROM sessions
               WHERE user_id = ? AND received_at > ?
                 AND (transcript_body IS NOT NULL OR conversation_json IS NOT NULL)
+                AND COALESCE(transcript_path, '') NOT LIKE '%/subagents/%'
+                AND COALESCE(transcript_path, '') NOT LIKE '%\\subagents\\%'
               ORDER BY message_count DESC LIMIT ?`)
     .all(userId, since ?? '', sessions)
   const picked = []
   let budget = totalCap
-  for (const { transcript_body: body, conversation_json: conversationJson, ...row } of rows) {
+  for (const {
+    transcript_format: format,
+    transcript_body: body,
+    conversation_json: conversationJson,
+    ...row
+  } of rows) {
     if (budget <= 0) {
       break
     }
-    const text = readableTranscript(bodyFor(body, conversationJson), Math.min(perSession, budget))
+    const text = readableTranscript(
+      bodyFor(format, body, conversationJson),
+      Math.min(perSession, budget)
+    )
     if (text) {
       picked.push({ ...row, text })
       budget -= text.length
@@ -73,10 +85,14 @@ function excerpts(db, userId, since, sessions, perSession = 3000, totalCap = 300
 }
 
 /**
- * Prefer the normalized conversation over the raw transcript when both exist:
- * it's already role/text pairs, no format-specific noise to strip.
+ * Raw transcripts go through readableTranscript's filters (sidechain, compact
+ * summary, injected blocks); the normalized conversation skips them, so it is
+ * used only when it is the sole source.
  */
-function bodyFor(transcriptBody, conversationJson) {
+function bodyFor(format, transcriptBody, conversationJson) {
+  if (transcriptBody && format !== CONVERSATION_FORMAT) {
+    return transcriptBody
+  }
   const { conversation } = parseConversationColumn(conversationJson)
   if (Array.isArray(conversation) && conversation.length > 0) {
     return conversation.map((m) => JSON.stringify({ role: m.role, text: m.text })).join('\n')
@@ -111,7 +127,16 @@ function statusOf(skills) {
   return skills.length > 0 ? 'ok' : 'empty'
 }
 
+const normalizedTitle = (title) => String(title).trim().replace(/\s+/g, ' ').toLowerCase()
+
+/** Why skip known titles: backfilled sessions re-trigger extraction over material already mined. */
 function storeSkills(db, userId, skills, meta) {
+  const known = new Set(
+    db
+      .prepare('SELECT title FROM skills WHERE user_id = ?')
+      .all(userId)
+      .map((row) => normalizedTitle(row.title))
+  )
   const insert = db.prepare(`
     INSERT INTO skills
       (user_id, title, summary, body, tags, evidence, model, input_watermark,
@@ -119,6 +144,11 @@ function storeSkills(db, userId, skills, meta) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   for (const skill of skills) {
+    const key = normalizedTitle(skill.title)
+    if (known.has(key)) {
+      continue
+    }
+    known.add(key)
     insert.run(
       userId,
       String(skill.title),

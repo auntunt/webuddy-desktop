@@ -13,17 +13,28 @@ export const openTempDb = () => openDb(join(mkdtempSync(join(tmpdir(), 'wb-skill
 
 export function insertSession(
   db,
-  { user = 'lina', receivedAt, body = null, id = receivedAt, conversationJson = null }
+  {
+    user = 'lina',
+    receivedAt,
+    body = null,
+    id = receivedAt,
+    conversationJson = null,
+    format = 'jsonl',
+    path = null
+  }
 ) {
   db.prepare(`INSERT INTO sessions (dedupe_key, device_id, user_id, agent_id, session_id,
-      local_date, cwd, turn_count, message_count, received_at, transcript_body, conversation_json)
-    VALUES (?, 'd', ?, 'claude-code', ?, '2026-09-20', '/repo', 1, 2, ?, ?, ?)`).run(
+      local_date, cwd, turn_count, message_count, received_at, transcript_body, conversation_json,
+      transcript_format, transcript_path)
+    VALUES (?, 'd', ?, 'claude-code', ?, '2026-09-20', '/repo', 1, 2, ?, ?, ?, ?, ?)`).run(
     `k-${id}`,
     user,
     id,
     receivedAt,
     body,
-    conversationJson
+    conversationJson,
+    format,
+    path
   )
 }
 

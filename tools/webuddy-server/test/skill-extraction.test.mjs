@@ -87,23 +87,68 @@ describe('extractSkills', () => {
     assert.match(sent.messages[0].content, /最多 5 条/)
   })
 
-  it('prefers the stored conversation over the raw transcript when both exist', async () => {
-    insertSession(db, {
-      receivedAt: '2026-09-20T03:00:00Z',
-      body: JSON.stringify({
-        type: 'user',
-        message: { role: 'user', content: 'RAW-TRANSCRIPT-TEXT' }
-      }),
-      conversationJson: JSON.stringify({
-        messages: [{ role: 'user', text: 'CONVERSATION-TEXT', timestamp: null }],
-        truncated: false
-      })
-    })
+  const promptOf = (fetchMock) =>
+    JSON.parse(fetchMock.mock.calls[0].arguments[1].body).messages[1].content
+  const rawBody = JSON.stringify({ type: 'user', message: { role: 'user', content: 'RAW-TEXT' } })
+  const conversationJson = JSON.stringify({
+    messages: [{ role: 'user', text: 'CONVERSATION-TEXT', timestamp: null }],
+    truncated: false
+  })
+
+  it('uses the filtered raw transcript when it is not a normalized conversation', async () => {
+    insertSession(db, { receivedAt: '2026-09-20T03:00:00Z', body: rawBody, conversationJson })
     const fetchMock = reply('[]')
     await extractSkills(db, 'lina', LLM_ENV)
-    const prompt = JSON.parse(fetchMock.mock.calls[0].arguments[1].body).messages[1].content
-    assert.match(prompt, /用户：CONVERSATION-TEXT/)
-    assert.doesNotMatch(prompt, /RAW-TRANSCRIPT-TEXT/)
+    assert.match(promptOf(fetchMock), /用户：RAW-TEXT/)
+    assert.doesNotMatch(promptOf(fetchMock), /CONVERSATION-TEXT/)
+  })
+
+  it('uses the stored conversation for webuddy.conversation.v1 or when there is no body', async () => {
+    insertSession(db, {
+      receivedAt: '2026-09-20T03:00:00Z',
+      id: 'v1',
+      body: rawBody,
+      conversationJson,
+      format: 'webuddy.conversation.v1'
+    })
+    insertSession(db, { receivedAt: '2026-09-20T04:00:00Z', id: 'nobody', conversationJson })
+    const fetchMock = reply('[]')
+    await extractSkills(db, 'lina', LLM_ENV)
+    assert.equal(promptOf(fetchMock).match(/用户：CONVERSATION-TEXT/g)?.length, 2)
+    assert.doesNotMatch(promptOf(fetchMock), /RAW-TEXT/)
+  })
+
+  it('leaves subagent transcripts out of the material', async () => {
+    const sub = (id, path, text) =>
+      insertSession(db, {
+        receivedAt: '2026-09-20T05:00:00Z',
+        id,
+        path,
+        body: JSON.stringify({ type: 'user', message: { role: 'user', content: text } })
+      })
+    sub('posix', '~/.claude/projects/p/u/subagents/agent-1.jsonl', 'POSIX-SUB')
+    sub('win', 'C:\\Users\\~\\.claude\\projects\\p\\u\\subagents\\agent-2.jsonl', 'WIN-SUB')
+    sub('main', '~/.claude/projects/p/u.jsonl', 'MAIN-TEXT')
+    const fetchMock = reply('[]')
+    await extractSkills(db, 'lina', LLM_ENV)
+    assert.match(promptOf(fetchMock), /MAIN-TEXT/)
+    assert.doesNotMatch(promptOf(fetchMock), /POSIX-SUB|WIN-SUB/)
+  })
+})
+
+describe('extractSkills dedupe', () => {
+  it('does not store a skill whose normalized title the user already has', async () => {
+    reply(JSON.stringify([skill('重试 用 指数退避')]))
+    await extractSkills(db, 'lina', LLM_ENV)
+    mock.restoreAll()
+    insertSession(db, { receivedAt: '2026-09-21T01:00:00Z', id: 'later' })
+    reply(JSON.stringify([skill('  重试  用 指数退避 '), skill('New'), skill('new')]))
+    await extractSkills(db, 'lina', LLM_ENV)
+    const titles = db.prepare('SELECT title FROM skills ORDER BY id').all()
+    assert.deepEqual(
+      titles.map((row) => row.title),
+      ['重试 用 指数退避', 'New']
+    )
   })
 })
 
