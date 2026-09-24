@@ -14,6 +14,10 @@ import type {
 } from '../../shared/ai-vault-session-title'
 import { withSpan } from '../observability/tracer'
 import type {
+  ReadAiVaultConversationArgs,
+  ReadAiVaultConversationResult
+} from './session-conversation-read'
+import type {
   ReadAiVaultFirstUserPromptArgs,
   ReadAiVaultFirstUserPromptResult
 } from './session-first-user-prompt-read'
@@ -94,6 +98,13 @@ export function readAiVaultFirstUserPromptInService(
   signal?: AbortSignal
 ): Promise<ReadAiVaultFirstUserPromptResult> {
   return getSharedClient().request({ type: 'request', operation: 'firstPrompt', request }, signal)
+}
+
+export function readAiVaultConversationInService(
+  request: ReadAiVaultConversationArgs,
+  signal?: AbortSignal
+): Promise<ReadAiVaultConversationResult> {
+  return getSharedClient().request({ type: 'request', operation: 'conversation', request }, signal)
 }
 
 export function searchSessionsInService(

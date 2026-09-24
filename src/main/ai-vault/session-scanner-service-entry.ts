@@ -1,5 +1,6 @@
 import { requestSessionSearchRoots } from './session-scanner-service-root-request'
 import type { AiVaultSessionTitle } from '../../shared/ai-vault-session-title'
+import { readAiVaultConversation } from './session-conversation-read'
 import { readAiVaultFirstUserPrompt } from './session-first-user-prompt-read'
 import {
   flushSessionParseCachePersist,
@@ -87,6 +88,12 @@ async function executeRequest(request: AiVaultServiceRequest): Promise<AiVaultSe
       return {
         operation: 'firstPrompt',
         value: await readAiVaultFirstUserPrompt(request.request)
+      }
+    }
+    if (request.operation === 'conversation') {
+      return {
+        operation: 'conversation',
+        value: await readAiVaultConversation(request.request)
       }
     }
     const startedAt = performance.now()

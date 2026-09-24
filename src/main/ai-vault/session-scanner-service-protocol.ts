@@ -12,6 +12,10 @@ import type {
 import type { AiVaultSearchSettings } from '../../shared/ai-vault-search-settings'
 import type { SessionSearchHostScope } from '../ai-vault-search/session-search-service'
 import type { SessionSearchScanRoots } from '../ai-vault-search/session-search-scan-roots'
+import type {
+  ReadAiVaultConversationArgs,
+  ReadAiVaultConversationResult
+} from './session-conversation-read'
 import type { ReadAiVaultFirstUserPromptArgs } from './session-first-user-prompt-read'
 import type { SessionParseCachePersistenceOptions } from './session-parse-cache-persistence'
 import type { AiVaultWorkerScanOptions } from './session-scanner-worker-protocol'
@@ -24,6 +28,7 @@ export type AiVaultServiceOperation =
   | 'titles'
   | 'subagents'
   | 'firstPrompt'
+  | 'conversation'
   | 'searchSessions'
   | 'searchStatus'
   | 'searchReconcile'
@@ -36,6 +41,7 @@ const AI_VAULT_SERVICE_OPERATIONS: ReadonlySet<string> = new Set<AiVaultServiceO
   'titles',
   'subagents',
   'firstPrompt',
+  'conversation',
   'searchSessions',
   'searchStatus',
   'searchReconcile',
@@ -85,6 +91,11 @@ export type AiVaultServiceRequestBody =
     }
   | {
       type: 'request'
+      operation: 'conversation'
+      request: ReadAiVaultConversationArgs
+    }
+  | {
+      type: 'request'
       operation: 'searchSessions'
       request: AiVaultSearchRequest
       /** What the host made of a scope identity; outside `request` so no wire cap applies. */
@@ -111,6 +122,7 @@ export type AiVaultServiceResultValue =
   | { operation: 'titles'; value: AiVaultSessionTitlesResult }
   | { operation: 'subagents'; value: AiVaultSubagentListResult }
   | { operation: 'firstPrompt'; value: { prompt: string | null } }
+  | { operation: 'conversation'; value: ReadAiVaultConversationResult }
   | { operation: 'searchSessions'; value: AiVaultSearchResponse }
   | { operation: 'searchStatus'; value: AiVaultSearchStatus }
   | { operation: 'searchReconcile'; value: null }
@@ -127,9 +139,11 @@ export type AiVaultServiceChildMessage =
   | { type: 'error'; id: number; message: string; retryable: boolean }
   | { type: 'invalidated'; generation: number }
 
-/** Everything but the two bulk reads is interactive: a search must not queue behind a scan. */
+/** Everything but the bulk reads is interactive: a search must not queue behind a scan. */
 export function aiVaultServiceLane(operation: AiVaultServiceOperation): AiVaultServiceLane {
-  return operation === 'scan' || operation === 'titles' ? 'cache' : 'interactive'
+  return operation === 'scan' || operation === 'titles' || operation === 'conversation'
+    ? 'cache'
+    : 'interactive'
 }
 
 export function isAiVaultServiceRequest(value: unknown): value is AiVaultServiceRequest {

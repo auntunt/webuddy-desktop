@@ -102,7 +102,7 @@ async function parseSessionForFullFirstUserPrompt(args: {
   )
 }
 
-async function fileWithMtimeForPath(
+export async function fileWithMtimeForPath(
   filePath: string,
   agent: AiVaultAgent
 ): Promise<FileWithMtime | null> {

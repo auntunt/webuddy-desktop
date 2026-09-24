@@ -4,6 +4,11 @@ import type {
   AiVaultSessionTitlesResult
 } from '../../shared/ai-vault-session-title'
 import {
+  readAiVaultConversation,
+  type ReadAiVaultConversationArgs,
+  type ReadAiVaultConversationResult
+} from './session-conversation-read'
+import {
   readAiVaultFirstUserPrompt,
   type ReadAiVaultFirstUserPromptArgs,
   type ReadAiVaultFirstUserPromptResult
@@ -12,6 +17,7 @@ import {
   clearAiVaultServiceRestartCircuit,
   invalidateAiVaultServiceCache,
   listAiVaultSubagentSessionsInService,
+  readAiVaultConversationInService,
   readAiVaultFirstUserPromptInService,
   resetAiVaultScannerServiceForTests,
   resolveAiVaultSessionTitlesInService,
@@ -76,6 +82,14 @@ export function readAiVaultFirstUserPromptInBackground(
   return shouldUseAiVaultServiceProcess()
     ? readAiVaultFirstUserPromptInService(request)
     : readAiVaultFirstUserPrompt(request)
+}
+
+export function readAiVaultConversationInBackground(
+  request: ReadAiVaultConversationArgs
+): Promise<ReadAiVaultConversationResult> {
+  return shouldUseAiVaultServiceProcess()
+    ? readAiVaultConversationInService(request)
+    : readAiVaultConversation(request)
 }
 
 export function invalidateAiVaultBackgroundCache(paths: string[]): Promise<void> {
