@@ -8,13 +8,19 @@
  */
 
 import { askModel, llmReady } from './llm.mjs'
+import { parseSkillReply } from './skill-json.mjs'
+import { lastSkillWatermark, recordSkillRun } from './skill-runs.mjs'
+import { readableTranscript } from './transcript-text.mjs'
+
+// 显式给足：5 条 × 约 400 字的正文 + JSON 外壳；网关的推理模型也会吃掉一部分。
+const SKILL_MAX_TOKENS = 8000
 
 const SYSTEM = [
   '你是研发方法论的提炼者。从给定的开发会话记录里，找出**可被别人复用**的具体做法。',
   '只写有证据支撑的，不要写"要提高效率"这类空话。每条 skill 必须能在给定记录里找到出处。',
   '严格输出 JSON 数组，不要任何解释文字。每个元素：',
   '{"title":"简短标题","summary":"一句话说明","tags":["标签"],"body":"markdown 正文，含触发场景、具体步骤、注意事项","evidence":"来自哪次会话/哪个项目的依据"}',
-  '最多 8 条。宁少勿滥 —— 没有值得提炼的就返回 []。'
+  '最多 5 条，每条 body 不超过 400 字，写要点不写铺垫。宁少勿滥 —— 没有值得提炼的就返回 []。'
 ].join('\n')
 
 function watermarkFor(db, userId) {
@@ -40,10 +46,10 @@ function material(db, userId, since, limit) {
  * 会话正文片段。
  *
  * Why 必须有：只给元数据（日期、路径、轮次）的话，"提炼可复用做法"是无解的 ——
- * 模型看不到任何具体动作，只能返回空。所以按会话取样，逐条截断，并设总量上限，
+ * 模型看不到任何具体动作，只能返回空。所以按会话取可读对话，逐条截断，并设总量上限，
  * 让 token 花在"有内容"上而不是把整库塞进上下文。
  */
-function excerpts(db, userId, since, sessions, perSession = 2500, totalCap = 40000) {
+function excerpts(db, userId, since, sessions, perSession = 3000, totalCap = 30000) {
   const rows = db
     .prepare(`SELECT local_date, agent_id, cwd, transcript_body FROM sessions
               WHERE user_id = ? AND received_at > ? AND transcript_body IS NOT NULL
@@ -51,15 +57,15 @@ function excerpts(db, userId, since, sessions, perSession = 2500, totalCap = 400
     .all(userId, since ?? '', sessions)
   const picked = []
   let budget = totalCap
-  for (const row of rows) {
+  for (const { transcript_body: body, ...row } of rows) {
     if (budget <= 0) {
       break
     }
-    const take = Math.min(perSession, budget)
-    const text = String(row.transcript_body).slice(0, take)
-    // 太大的一行（比如整段 JSON 在一行）也会被 slice 掉，不影响。
-    picked.push({ ...row, text })
-    budget -= text.length
+    const text = readableTranscript(body, Math.min(perSession, budget))
+    if (text) {
+      picked.push({ ...row, text })
+      budget -= text.length
+    }
   }
   return picked
 }
@@ -84,33 +90,42 @@ function buildPrompt(userId, { rows, projects, excerpts }) {
   ].join('\n')
 }
 
-/** 模型有时会裹上 ```json 围栏，或前后带解释文字。 */
-export function parseSkillJson(text) {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  const candidate = (fenced ? fenced[1] : text).trim()
-  const start = candidate.indexOf('[')
-  const end = candidate.lastIndexOf(']')
-  if (start === -1 || end === -1 || end < start) {
-    return []
+function statusOf(skills) {
+  if (skills === null) {
+    return 'parse-failed'
   }
-  try {
-    const parsed = JSON.parse(candidate.slice(start, end + 1))
-    return Array.isArray(parsed) ? parsed.filter((s) => s && s.title && s.body) : []
-  } catch {
-    return []
+  return skills.length > 0 ? 'ok' : 'empty'
+}
+
+function storeSkills(db, userId, skills, meta) {
+  const insert = db.prepare(`
+    INSERT INTO skills
+      (user_id, title, summary, body, tags, evidence, model, input_watermark,
+       source_sessions, input_tokens, output_tokens, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  for (const skill of skills) {
+    insert.run(
+      userId,
+      String(skill.title),
+      skill.summary ?? null,
+      String(skill.body),
+      JSON.stringify(skill.tags ?? []),
+      skill.evidence ?? null,
+      meta.model,
+      meta.watermark,
+      meta.sourceSessions,
+      meta.inputTokens,
+      meta.outputTokens,
+      meta.createdAt
+    )
   }
 }
 
-export function lastSkillWatermark(db, userId) {
-  const row = db
-    .prepare('SELECT input_watermark FROM skills WHERE user_id = ? ORDER BY id DESC LIMIT 1')
-    .get(userId)
-  return row?.input_watermark ?? null
-}
-
+/** 每次调模型都在 skill_runs 留一行；网络/超时失败记 error 后照常抛出。 */
 export async function extractSkills(db, userId, env = process.env) {
   if (!llmReady(env)) {
-    return { skipped: 'no-api-key' }
+    return { skipped: 'no-api-key', userId }
   }
   const current = watermarkFor(db, userId)
   const previous = lastSkillWatermark(db, userId)
@@ -122,37 +137,46 @@ export async function extractSkills(db, userId, env = process.env) {
     return { skipped: 'no-new-data', userId }
   }
 
-  const result = await askModel({
-    system: SYSTEM,
-    prompt: buildPrompt(userId, digest),
-    env
-  })
-  const skills = parseSkillJson(result.text)
-  const createdAt = new Date().toISOString()
-  const insert = db.prepare(`
-    INSERT INTO skills
-      (user_id, title, summary, body, tags, evidence, model, input_watermark,
-       source_sessions, input_tokens, output_tokens, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
+  const startedAt = new Date().toISOString()
+  let result
+  try {
+    result = await askModel({
+      system: SYSTEM,
+      prompt: buildPrompt(userId, digest),
+      env,
+      maxTokens: SKILL_MAX_TOKENS
+    })
+  } catch (error) {
+    const message = String(error?.message ?? error)
+    const finishedAt = new Date().toISOString()
+    recordSkillRun(db, { userId, startedAt, finishedAt, status: 'error', error: message })
+    throw error
+  }
+  const { skills, salvaged } = parseSkillReply(result.text, result.finishReason)
+  const status = statusOf(skills)
+  const finishedAt = new Date().toISOString()
   db.exec('BEGIN')
   try {
-    for (const skill of skills) {
-      insert.run(
-        userId,
-        String(skill.title),
-        skill.summary ?? null,
-        String(skill.body),
-        JSON.stringify(skill.tags ?? []),
-        skill.evidence ?? null,
-        result.model,
-        current,
-        digest.rows.length,
-        result.inputTokens,
-        result.outputTokens,
-        createdAt
-      )
-    }
+    storeSkills(db, userId, skills ?? [], {
+      model: result.model,
+      watermark: current,
+      sourceSessions: digest.rows.length,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      createdAt: finishedAt
+    })
+    recordSkillRun(db, {
+      userId,
+      startedAt,
+      finishedAt,
+      status,
+      extracted: skills?.length ?? 0,
+      finishReason: result.finishReason,
+      rawText: result.text,
+      inputWatermark: current,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens
+    })
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
@@ -160,105 +184,13 @@ export async function extractSkills(db, userId, env = process.env) {
   }
   return {
     userId,
+    status,
     model: result.model,
-    extracted: skills.length,
+    extracted: skills?.length ?? 0,
+    salvaged,
+    finishReason: result.finishReason,
     inputTokens: result.inputTokens,
     outputTokens: result.outputTokens,
     watermark: current
   }
-}
-
-function safeTags(raw) {
-  try {
-    const parsed = JSON.parse(raw ?? '[]')
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-export function listSkills(db, userId) {
-  return db
-    .prepare(`SELECT id, user_id, title, summary, body, tags, evidence, model, source_sessions, created_at
-              FROM skills WHERE user_id = ? ORDER BY id DESC`)
-    .all(userId)
-    .map((row) => ({ ...row, tags: safeTags(row.tags) }))
-}
-
-export function getSkill(db, id) {
-  const row = db.prepare('SELECT * FROM skills WHERE id = ?').get(Number(id))
-  return row ? { ...row, tags: safeTags(row.tags) } : null
-}
-
-/** 下载格式：可以直接丢进知识库或喂给 agent 的 markdown。 */
-export function skillAsMarkdown(skill) {
-  return [
-    `# ${skill.title}`,
-    '',
-    skill.summary ? `> ${skill.summary}` : '',
-    `- 来源人：${skill.user_id}`,
-    `- 证据：${skill.evidence ?? '—'}`,
-    `- 标签：${skill.tags.length ? skill.tags.join('、') : '—'}`,
-    `- 提炼时间：${skill.created_at}`,
-    `- 模型：${skill.model ?? '—'}`,
-    '',
-    '---',
-    '',
-    skill.body
-  ]
-    .filter((line) => line !== '')
-    .join('\n')
-}
-
-/** 全部 skill 打包成一份 markdown，便于整包下载。 */
-export function skillsAsBundle(userId, skills) {
-  return [
-    `# ${userId} 的 skill 集`,
-    '',
-    `共 ${skills.length} 条，导出时间 ${new Date().toISOString()}`,
-    '',
-    ...skills.map(
-      (skill) =>
-        `${skillAsMarkdown({ ...skill, body: '' }).trim()}\n\n[下载单条: /api/skills/${skill.id}/download]\n\n---\n`
-    )
-  ].join('\n')
-}
-
-/**
- * 定时为每个有日志的人提炼。串行执行 —— 并发打模型既没必要，也更容易撞限流。
- */
-export function startSkillSchedule(db, { env = process.env } = {}) {
-  const intervalMs = Number(env.WEBUDDY_SKILL_MS || 6 * 60 * 60 * 1000)
-  let running = false
-  const tick = async () => {
-    if (running) {
-      return []
-    }
-    running = true
-    const outcomes = []
-    try {
-      const users = db
-        .prepare('SELECT user_id, COUNT(*) AS n FROM sessions GROUP BY user_id ORDER BY n DESC')
-        .all()
-      for (const user of users) {
-        try {
-          const result = await extractSkills(db, user.user_id, env)
-          outcomes.push(result)
-          if (!result.skipped) {
-            console.log(
-              `[skills] ${user.user_id}: +${result.extracted} (${result.inputTokens}+${result.outputTokens} tokens)`
-            )
-          }
-        } catch (error) {
-          console.error(`[skills] ${user.user_id} failed:`, error?.message ?? error)
-        }
-      }
-    } finally {
-      running = false
-    }
-    return outcomes
-  }
-  const timer = setInterval(() => void tick(), intervalMs)
-  timer.unref?.()
-  return { tick, intervalMs }
 }

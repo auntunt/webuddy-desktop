@@ -17,7 +17,7 @@ import { ensureBootstrapAdmin } from './lib/auth.mjs'
 import { llmConfig } from './lib/llm.mjs'
 import { loadOrCreateSigningKey, signingKeyId } from './lib/relay-tokens.mjs'
 import { startAnalysisSchedule } from './lib/analysis-job.mjs'
-import { startSkillSchedule } from './lib/skill-extraction.mjs'
+import { startSkillSchedule } from './lib/skill-schedule.mjs'
 import { createRequestHandler } from './lib/app.mjs'
 
 const HERE = import.meta.dirname
@@ -81,7 +81,9 @@ server.listen(PORT, HOST, () => {
   console.log(
     `  analysis: every ${Math.round(analysis.intervalMs / 60000)} min, skipped when no new data`
   )
-  console.log(`  skills:   every ${Math.round(skills.intervalMs / 60000)} min, per user`)
+  console.log(
+    `  skills:   every ${Math.round(skills.intervalMs / 60000)} min, per user; first run in ${Math.round(skills.startupDelayMs / 1000)} s`
+  )
   const llm = llmConfig(process.env)
   console.log(
     `  model: ${llm.model} via ${llm.kind}${llm.apiKey ? '' : ' (NO API KEY — analysis disabled)'}`

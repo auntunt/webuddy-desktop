@@ -26,13 +26,8 @@ import { listTodos, syncTodos } from './sync.mjs'
 import { workSummary } from './insights.mjs'
 import { lastAnalysis, runAnalysis } from './analysis-job.mjs'
 import { jwksFor } from './relay-tokens.mjs'
-import {
-  extractSkills,
-  getSkill,
-  listSkills,
-  skillAsMarkdown,
-  skillsAsBundle
-} from './skill-extraction.mjs'
+import { extractSkills } from './skill-extraction.mjs'
+import { getSkill, skillAsMarkdown, skillsAsBundle, skillsResponse } from './skill-library.mjs'
 import { json, readBody, serveStatic } from './http-io.mjs'
 import { validate } from './ingest-validation.mjs'
 import { authenticate, filtersOf } from './request-context.mjs'
@@ -198,14 +193,14 @@ export function createRequestHandler({ db, relay, publicDir }) {
         if (owner === undefined) {
           return notFound(res)
         }
-        return json(res, 200, { userId: owner, items: listSkills(db, owner) })
+        return json(res, 200, skillsResponse(db, owner))
       }
       if (route === '/api/skills/bundle' && req.method === 'GET') {
         const owner = resolveOwner(db, auth, url.searchParams.get('user'))
         if (owner === undefined) {
           return notFound(res)
         }
-        const markdown = skillsAsBundle(owner, listSkills(db, owner))
+        const markdown = skillsAsBundle(owner, skillsResponse(db, owner).items)
         res.writeHead(200, {
           'content-type': 'text/markdown; charset=utf-8',
           'content-disposition': `attachment; filename="webuddy-skills-${owner}.md"`
