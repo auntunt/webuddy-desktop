@@ -78,11 +78,11 @@ node tools/webuddy-agent/index.mjs scan && node tools/webuddy-agent/index.mjs pu
 | `GET` | `/api/facets` | 可见范围内的人员 / agent / 项目，给筛选下拉用 |
 | `GET` | `/api/stats?by=person\|agent\|day\|project\|branch` | 总量 + 分组排行；`limit` ≤ 500 |
 | `GET` | `/api/insights` | KPI 汇总；admin/lead 传 `user=__all__` 看可见范围合计 |
-| `GET` | `/api/sessions` | 会话明细（分页，`limit` ≤ 200、`offset`） |
-| `GET` | `/api/sessions/:key` | 单条会话，含正文；看不到的返回 404 |
+| `GET` | `/api/sessions` | 会话明细（分页，`limit` ≤ 200、`offset`）；不含 `conversation` |
+| `GET` | `/api/sessions/:key` | 单条会话，含正文和 `conversation`（规范化对话，见下）；看不到的返回 404 |
 | `GET` | `/api/analysis` | 日 × 人 × agent 汇总表 |
 | `GET` `POST` | `/api/analysis/llm[/run]` | AI 分析结果 / 立即跑一次（`user=` 选人，admin 可 `__all__`） |
-| `GET` `POST` | `/api/skills`、`/api/skills/bundle`、`/api/skills/:id/download`、`/api/skills/extract` | Skill 库 |
+| `GET` `POST` | `/api/skills`、`/api/skills/bundle`、`/api/skills/:id/download`、`/api/skills/extract` | Skill 库；`GET /api/skills` 响应里的 `lastRun` 是当前用户最近一次 skill 提炼的运行记录（`null` 表示还没跑过），看板用它说明"为什么还没提炼出东西" |
 | `GET` | `/api/export.csv` / `.json` | 按当前筛选导出 |
 | `GET` `POST` `PATCH` | `/api/admin/users[/:id]` | 账号管理（角色、小组 `groupId`、停用），仅 admin |
 | `GET` `DELETE` | `/api/admin/users/:id/tokens`、`/api/admin/tokens/:id` | 查看 / 吊销某人的令牌，仅 admin |
@@ -92,6 +92,18 @@ node tools/webuddy-agent/index.mjs scan && node tools/webuddy-agent/index.mjs pu
 `/api/stats` 的分组维度用 `by=`；旧版的 `group=person|agent|…` 仍按维度解释以兼容旧客户端，其他 `group=` 值都是小组筛选。
 
 鉴权：`Authorization: Bearer <TOKEN>`，或 `?token=<TOKEN>`（看板只在导出链接里用后者，普通链接没法带请求头）。
+
+## 对话字段（`conversation`）
+
+`POST /api/ingest` 每条记录除了原有的 `record` / `transcript`，可以再带一个可选的同级字段 `conversation`：规范化后的消息数组 `[{role, text, timestamp}]`（采集端已脱敏，见 `tools/webuddy-agent/README.md`）。
+
+- **可选**：老版本采集端不带这个字段照样能入库，行为和以前一样。
+- **大小上限 2MB**：超过 2MB 的 `conversation` 会被整体丢弃（`sanitizeConversation`，`lib/ingest-validation.mjs`），但记录本身（`transcript` 等其它字段）照常入库，不会因为对话太大就拒收整条记录。
+- 落库到 `sessions.conversation_json` 列（`lib/conversation-schema.mjs` 幂等迁移补齐；旧库启动时自动加列），存的是 `{messages, truncated}` 打包后的 JSON，`truncated` 对应采集端的 `transcript.conversationTruncated`（超过 200+1800 条截断标记）。
+- 重传同一会话时，`conversation_json`（以及 `agent_version`、`tokens_input`、`tokens_output`）用 `COALESCE(excluded.x, sessions.x)` 合并：新记录没带这个字段（如老采集端）不会把已存的对话或 token 计数清空。
+- `GET /api/sessions/:key` 会把它解析展开成 `conversation` / `conversation_truncated` 两个字段返回；`GET /api/sessions` 列表和 `/api/export.*` 导出都不带这两个字段（避免明细页/列表页负载暴涨）。
+- Skill 提炼（`lib/skill-extraction.mjs`）优先读 `conversation_json` 摘录对话，只有没有 `conversation_json` 时才回退读原始 `transcript_body`。
+- 看板会话详情页：有 `conversation_json` 就按对话气泡展示（角色 + 时间 + 纯文本，不解析 HTML/Markdown，避免 XSS），没有就回退成原来的 `<pre>` 原文视图；会话列表页不受影响。
 
 ## 服务端分析
 
