@@ -10,10 +10,15 @@
  */
 
 // 网关对大 prompt 很慢，180 s 在线上被打断过；10 分钟兜底，可用 AI_TIMEOUT_MS 调。
+function positive(value, fallback) {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
 function limits(env) {
   return {
-    maxTokens: Number(env.AI_MAX_TOKENS || 8000),
-    timeoutMs: Number(env.AI_TIMEOUT_MS || 600000)
+    maxTokens: positive(env.AI_MAX_TOKENS, 8000),
+    timeoutMs: positive(env.AI_TIMEOUT_MS, 600000)
   }
 }
 

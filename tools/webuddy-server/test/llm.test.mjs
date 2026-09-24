@@ -26,6 +26,14 @@ describe('llmConfig', () => {
     assert.equal(config.maxTokens, 1234)
     assert.equal(config.timeoutMs, 5000)
   })
+
+  it('falls back to defaults for non-numeric or non-positive values', () => {
+    for (const bad of ['abc', '0', '-5', 'Infinity']) {
+      const config = llmConfig({ ...OPENAI_ENV, AI_MAX_TOKENS: bad, AI_TIMEOUT_MS: bad })
+      assert.equal(config.maxTokens, 8000)
+      assert.equal(config.timeoutMs, 600000)
+    }
+  })
 })
 
 describe('askModel', () => {
