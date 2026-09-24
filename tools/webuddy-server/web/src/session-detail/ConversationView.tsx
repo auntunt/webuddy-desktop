@@ -24,6 +24,19 @@ const ROLE_TONE: Record<ConversationRole, 'accent' | 'neutral' | 'warn'> = {
   unknown: 'neutral'
 }
 
+/** No id on the wire and repeats ("继续") are common, so the nth repeat gets its ordinal. */
+function keyedMessages(
+  conversation: ConversationMessage[]
+): { key: string; message: ConversationMessage }[] {
+  const seen = new Map<string, number>()
+  return conversation.map((message) => {
+    const base = `${message.role}:${message.timestamp ?? ''}:${message.text.slice(0, 40)}`
+    const nth = seen.get(base) ?? 0
+    seen.set(base, nth + 1)
+    return { key: `${base}#${nth}`, message }
+  })
+}
+
 function Message({ message }: { message: ConversationMessage }) {
   const [expanded, setExpanded] = useState(false)
   const long = message.text.length > MESSAGE_COLLAPSE_CHARS
@@ -97,9 +110,8 @@ export function ConversationView({
         <TranscriptView body={transcriptBody} bytes={transcriptBytes} />
       ) : (
         <div className="flex flex-col gap-2">
-          {/* Index keys: the list is static per render and repeated messages ("继续") are common. */}
-          {conversation.map((message, index) => (
-            <Message key={`${index}:${message.role}`} message={message} />
+          {keyedMessages(conversation).map(({ key, message }) => (
+            <Message key={key} message={message} />
           ))}
         </div>
       )}
