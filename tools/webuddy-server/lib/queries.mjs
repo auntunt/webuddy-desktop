@@ -6,6 +6,8 @@
  * client (dashboard, export, scheduled analysis).
  */
 
+import { parseConversationColumn } from './conversation-schema.mjs'
+
 /** Pushes `column IN (...)`; an empty list must match nothing, not everything. */
 function pushIn(clauses, params, column, values) {
   if (values.length === 0) {
@@ -134,7 +136,13 @@ export function countSessions(db, filters) {
 }
 
 export function getSession(db, key) {
-  return db.prepare('SELECT * FROM sessions WHERE dedupe_key = ?').get(key) ?? null
+  const row = db.prepare('SELECT * FROM sessions WHERE dedupe_key = ?').get(key)
+  if (!row) {
+    return null
+  }
+  const { conversation_json: conversationJson, ...rest } = row
+  const { conversation, truncated } = parseConversationColumn(conversationJson)
+  return { ...rest, conversation, conversation_truncated: truncated }
 }
 
 export function facets(db, filters = {}) {

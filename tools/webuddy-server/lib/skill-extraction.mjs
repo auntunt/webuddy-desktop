@@ -8,6 +8,7 @@
  */
 
 import { askModel, llmReady } from './llm.mjs'
+import { parseConversationColumn } from './conversation-schema.mjs'
 import { parseSkillReply } from './skill-json.mjs'
 import { lastSkillWatermark, recordSkillRun } from './skill-runs.mjs'
 import { readableTranscript } from './transcript-text.mjs'
@@ -51,23 +52,36 @@ function material(db, userId, since, limit) {
  */
 function excerpts(db, userId, since, sessions, perSession = 3000, totalCap = 30000) {
   const rows = db
-    .prepare(`SELECT local_date, agent_id, cwd, transcript_body FROM sessions
-              WHERE user_id = ? AND received_at > ? AND transcript_body IS NOT NULL
+    .prepare(`SELECT local_date, agent_id, cwd, transcript_body, conversation_json FROM sessions
+              WHERE user_id = ? AND received_at > ?
+                AND (transcript_body IS NOT NULL OR conversation_json IS NOT NULL)
               ORDER BY message_count DESC LIMIT ?`)
     .all(userId, since ?? '', sessions)
   const picked = []
   let budget = totalCap
-  for (const { transcript_body: body, ...row } of rows) {
+  for (const { transcript_body: body, conversation_json: conversationJson, ...row } of rows) {
     if (budget <= 0) {
       break
     }
-    const text = readableTranscript(body, Math.min(perSession, budget))
+    const text = readableTranscript(bodyFor(body, conversationJson), Math.min(perSession, budget))
     if (text) {
       picked.push({ ...row, text })
       budget -= text.length
     }
   }
   return picked
+}
+
+/**
+ * Prefer the normalized conversation over the raw transcript when both exist:
+ * it's already role/text pairs, no format-specific noise to strip.
+ */
+function bodyFor(transcriptBody, conversationJson) {
+  const { conversation } = parseConversationColumn(conversationJson)
+  if (Array.isArray(conversation) && conversation.length > 0) {
+    return conversation.map((m) => JSON.stringify({ role: m.role, text: m.text })).join('\n')
+  }
+  return transcriptBody
 }
 
 function buildPrompt(userId, { rows, projects, excerpts }) {

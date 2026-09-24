@@ -29,7 +29,7 @@ import { jwksFor } from './relay-tokens.mjs'
 import { extractSkills } from './skill-extraction.mjs'
 import { getSkill, skillAsMarkdown, skillsAsBundle, skillsResponse } from './skill-library.mjs'
 import { json, readBody, serveStatic } from './http-io.mjs'
-import { validate } from './ingest-validation.mjs'
+import { sanitizeConversation, validate } from './ingest-validation.mjs'
 import { authenticate, filtersOf } from './request-context.mjs'
 import { canSeeUser, resolveOwner, resolveVisibleUsers } from './visibility.mjs'
 
@@ -99,6 +99,7 @@ export function createRequestHandler({ db, relay, publicDir }) {
         // colleague. The token decides the owner, full stop.
         for (const payload of accepted) {
           payload.record.actor.userId = auth.user.username
+          payload.conversation = sanitizeConversation(payload.conversation)
         }
         const receivedAt = new Date().toISOString()
         const written = upsertSessions(db, accepted, receivedAt)

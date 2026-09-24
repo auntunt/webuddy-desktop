@@ -25,3 +25,18 @@ export function validate(record) {
   }
   return errors
 }
+
+const MAX_CONVERSATION_BYTES = 2 * 1024 * 1024
+
+/**
+ * Drops an oversized `conversation` rather than rejecting the whole record —
+ * the transcript/metadata are still worth keeping even if the conversation
+ * blew past the cap (a bad truncation on the collector side, say).
+ */
+export function sanitizeConversation(conversation) {
+  if (!Array.isArray(conversation)) {
+    return null
+  }
+  const bytes = Buffer.byteLength(JSON.stringify(conversation), 'utf8')
+  return bytes > MAX_CONVERSATION_BYTES ? null : conversation
+}

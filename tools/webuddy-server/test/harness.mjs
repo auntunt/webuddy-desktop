@@ -106,11 +106,15 @@ export async function startTestServer(opts = {}) {
     return fetch(`${baseUrl}${path}`, { ...init, headers })
   }
 
-  async function ingestSession(token, overrides = {}) {
+  async function ingestSession(token, overrides = {}, { transcript = null, conversation } = {}) {
     const record = baseRecord(overrides)
+    const payload = { record, transcript }
+    if (conversation !== undefined) {
+      payload.conversation = conversation
+    }
     return api(token, '/api/ingest', {
       method: 'POST',
-      body: JSON.stringify({ records: [{ record, transcript: null }] })
+      body: JSON.stringify({ records: [payload] })
     })
   }
 

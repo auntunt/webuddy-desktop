@@ -86,6 +86,25 @@ describe('extractSkills', () => {
     assert.doesNotMatch(prompt, /METADATA-NOISE/)
     assert.match(sent.messages[0].content, /最多 5 条/)
   })
+
+  it('prefers the stored conversation over the raw transcript when both exist', async () => {
+    insertSession(db, {
+      receivedAt: '2026-09-20T03:00:00Z',
+      body: JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: 'RAW-TRANSCRIPT-TEXT' }
+      }),
+      conversationJson: JSON.stringify({
+        messages: [{ role: 'user', text: 'CONVERSATION-TEXT', timestamp: null }],
+        truncated: false
+      })
+    })
+    const fetchMock = reply('[]')
+    await extractSkills(db, 'lina', LLM_ENV)
+    const prompt = JSON.parse(fetchMock.mock.calls[0].arguments[1].body).messages[1].content
+    assert.match(prompt, /用户：CONVERSATION-TEXT/)
+    assert.doesNotMatch(prompt, /RAW-TRANSCRIPT-TEXT/)
+  })
 })
 
 describe('extractSkills concurrency', () => {
