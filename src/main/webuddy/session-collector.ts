@@ -12,6 +12,7 @@
 
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+import { collectorConfigPath, readCollectorConfig } from './collector-config'
 import { exportVaultSessions, type VaultSessionExportResult } from './vault-session-export'
 import { productionVaultSessionExportDeps } from './vault-session-export-sources'
 
@@ -73,14 +74,30 @@ function runStep(entry: string, args: string[], env: NodeJS.ProcessEnv): Promise
 }
 
 export type CollectionPassDeps = {
+  hasCredential: () => Promise<boolean>
   runStep: (args: string[]) => Promise<number | null>
   exportSessions: () => Promise<VaultSessionExportResult>
   log: (message: string, error: unknown) => void
 }
 
+/** Signed in = config.json carries both the identity and its upload token. */
+export async function collectorHasCredential(env: NodeJS.ProcessEnv): Promise<boolean> {
+  const config = await readCollectorConfig(collectorConfigPath(env))
+  return (
+    typeof config.userId === 'string' &&
+    config.userId !== '' &&
+    typeof config.token === 'string' &&
+    config.token !== ''
+  )
+}
+
 /** One pass: export changed AI Vault sessions → `scan --manifest` → `push`. */
 export async function runCollectionPass(deps: CollectionPassDeps): Promise<void> {
   try {
+    // Why: signed out, scan would just exit non-zero and re-export the same batch every pass.
+    if (!(await deps.hasCredential())) {
+      return await pushOnly(deps)
+    }
     const exported = await deps.exportSessions()
     if (exported.count > 0 && exported.manifestPath) {
       try {
@@ -96,7 +113,11 @@ export async function runCollectionPass(deps: CollectionPassDeps): Promise<void>
   } catch (error) {
     deps.log('[webuddy] session export failed', error)
   }
-  // Always push so an outbox queued by earlier passes still drains.
+  await pushOnly(deps)
+}
+
+// Always push so an outbox queued by earlier passes still drains.
+async function pushOnly(deps: CollectionPassDeps): Promise<void> {
   await deps.runStep(['push'])
 }
 
@@ -128,6 +149,7 @@ export function startSessionCollection(
     try {
       await options.beforeRun?.()
       await runCollectionPass({
+        hasCredential: () => collectorHasCredential(env),
         runStep: (args) => runStep(entry, args, env),
         exportSessions: () => exportVaultSessions(productionVaultSessionExportDeps(env)),
         log: (message, error) => console.warn(message, error)

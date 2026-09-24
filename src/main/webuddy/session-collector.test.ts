@@ -1,5 +1,8 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { runCollectionPass, sessionCollectorEnv } from './session-collector'
+import { collectorHasCredential, runCollectionPass, sessionCollectorEnv } from './session-collector'
 import type { VaultSessionExportResult } from './vault-session-export'
 
 describe('sessionCollectorEnv', () => {
@@ -25,8 +28,10 @@ describe('sessionCollectorEnv', () => {
 
 function passDeps(
   exported: VaultSessionExportResult | Error,
-  scanExitCode: number | null = 0
+  scanExitCode: number | null = 0,
+  signedIn = true
 ): {
+  exportSessions: ReturnType<typeof vi.fn>
   steps: string[][]
   commit: ReturnType<typeof vi.fn>
   dispose: ReturnType<typeof vi.fn>
@@ -38,21 +43,23 @@ function passDeps(
   const dispose = vi.fn(async () => {})
   const log = vi.fn()
   const result = exported instanceof Error ? exported : { ...exported, commit, dispose }
+  const exportSessions = vi.fn(async () => {
+    if (result instanceof Error) {
+      throw result
+    }
+    return result
+  })
   const run = (): Promise<void> =>
     runCollectionPass({
+      hasCredential: async () => signedIn,
       runStep: async (args) => {
         steps.push(args)
         return args[0] === 'scan' ? scanExitCode : 0
       },
-      exportSessions: async () => {
-        if (result instanceof Error) {
-          throw result
-        }
-        return result
-      },
+      exportSessions,
       log
     })
-  return { steps, commit, dispose, log, run }
+  return { exportSessions, steps, commit, dispose, log, run }
 }
 
 describe('runCollectionPass', () => {
@@ -108,5 +115,31 @@ describe('runCollectionPass', () => {
     await expect(run()).resolves.toBeUndefined()
     expect(log).toHaveBeenCalledOnce()
     expect(steps).toEqual([['push']])
+  })
+
+  it('skips export and scan when signed out, but still pushes', async () => {
+    const { exportSessions, steps, commit, run } = passDeps(exported, 0, false)
+    await run()
+    expect(exportSessions).not.toHaveBeenCalled()
+    expect(steps).toEqual([['push']])
+    expect(commit).not.toHaveBeenCalled()
+  })
+})
+
+describe('collectorHasCredential', () => {
+  it('requires both userId and token in config.json', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'webuddy-cred-'))
+    const env = { WEBUDDY_AGENT_HOME: home }
+    try {
+      expect(await collectorHasCredential(env)).toBe(false)
+      await writeFile(join(home, 'config.json'), JSON.stringify({ userId: 'u1', token: '' }))
+      expect(await collectorHasCredential(env)).toBe(false)
+      await writeFile(join(home, 'config.json'), JSON.stringify({ token: 't' }))
+      expect(await collectorHasCredential(env)).toBe(false)
+      await writeFile(join(home, 'config.json'), JSON.stringify({ userId: 'u1', token: 't' }))
+      expect(await collectorHasCredential(env)).toBe(true)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
   })
 })
