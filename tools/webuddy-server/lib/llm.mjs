@@ -9,6 +9,14 @@
  * 两家都是 HTTP+JSON，差别只在路径、鉴权头和响应结构，这里收敛成一个函数。
  */
 
+// 网关对大 prompt 很慢，180 s 在线上被打断过；10 分钟兜底，可用 AI_TIMEOUT_MS 调。
+function limits(env) {
+  return {
+    maxTokens: Number(env.AI_MAX_TOKENS || 8000),
+    timeoutMs: Number(env.AI_TIMEOUT_MS || 600000)
+  }
+}
+
 export function llmConfig(env = process.env) {
   // 优先级最高：自建中转站。同一套 OpenAI 兼容协议，只是换个地址和 key，
   // 所以从 OpenRouter 切到自己的站台只改环境变量，不动代码。
@@ -18,7 +26,7 @@ export function llmConfig(env = process.env) {
       apiKey: env.LLM_API_KEY,
       baseUrl: env.LLM_BASE_URL,
       model: env.LLM_MODEL || 'claude-opus-4-7',
-      maxTokens: Number(env.AI_MAX_TOKENS || 2000)
+      ...limits(env)
     }
   }
   if (env.OPENROUTER_API_KEY) {
@@ -27,7 +35,7 @@ export function llmConfig(env = process.env) {
       apiKey: env.OPENROUTER_API_KEY,
       baseUrl: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
       model: env.LLM_MODEL || 'claude-opus-4-7',
-      maxTokens: Number(env.AI_MAX_TOKENS || 2000)
+      ...limits(env)
     }
   }
   return {
@@ -35,7 +43,7 @@ export function llmConfig(env = process.env) {
     apiKey: env.ANTHROPIC_API_KEY || '',
     baseUrl: env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com/v1/messages',
     model: env.AI_MODEL || 'claude-sonnet-5',
-    maxTokens: Number(env.AI_MAX_TOKENS || 2000)
+    ...limits(env)
   }
 }
 
@@ -68,6 +76,7 @@ async function callOpenAiCompatible({ system, prompt, config, signal }) {
   const data = await response.json()
   return {
     text: String(data.choices?.[0]?.message?.content ?? '').trim(),
+    finishReason: data.choices?.[0]?.finish_reason ?? null,
     model: data.model ?? config.model,
     inputTokens: data.usage?.prompt_tokens ?? 0,
     outputTokens: data.usage?.completion_tokens ?? 0
@@ -102,20 +111,25 @@ async function callAnthropic({ system, prompt, config, signal }) {
       .map((b) => b.text)
       .join('\n')
       .trim(),
+    finishReason: data.stop_reason ?? null,
     model: data.model ?? config.model,
     inputTokens: data.usage?.input_tokens ?? 0,
     outputTokens: data.usage?.output_tokens ?? 0
   }
 }
 
-/** 单轮问答。返回正文和用量 —— "省 token" 必须先能看见花了多少。 */
-export async function askModel({ system, prompt, env = process.env, timeoutMs = 180000 }) {
-  const config = llmConfig(env)
+/**
+ * 单轮问答。返回正文、用量和 finishReason —— "省 token" 必须先能看见花了多少，
+ * 截断（length / max_tokens）也要让调用方看得见。
+ */
+export async function askModel({ system, prompt, env = process.env, maxTokens, timeoutMs }) {
+  const base = llmConfig(env)
+  const config = { ...base, maxTokens: maxTokens ?? base.maxTokens }
   if (!config.apiKey) {
     throw new Error('没有可用的模型凭证（OPENROUTER_API_KEY / ANTHROPIC_API_KEY 都为空）')
   }
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const timer = setTimeout(() => controller.abort(), timeoutMs ?? config.timeoutMs)
   try {
     const args = { system, prompt, config, signal: controller.signal }
     return await (config.kind === 'openai' ? callOpenAiCompatible(args) : callAnthropic(args))
