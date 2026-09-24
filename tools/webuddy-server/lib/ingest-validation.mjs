@@ -28,15 +28,27 @@ export function validate(record) {
 
 const MAX_CONVERSATION_BYTES = 2 * 1024 * 1024
 
+function messageOf(item) {
+  if (typeof item?.role !== 'string' || typeof item.text !== 'string') {
+    return null
+  }
+  const timestamp = item.timestamp ?? null
+  return timestamp === null || typeof timestamp === 'string'
+    ? { role: item.role, text: item.text, timestamp }
+    : null
+}
+
 /**
  * Drops an oversized `conversation` rather than rejecting the whole record —
  * the transcript/metadata are still worth keeping even if the conversation
- * blew past the cap (a bad truncation on the collector side, say).
+ * blew past the cap (a bad truncation on the collector side, say). Malformed
+ * messages are dropped one by one; the web view assumes this exact shape.
  */
 export function sanitizeConversation(conversation) {
   if (!Array.isArray(conversation)) {
     return null
   }
-  const bytes = Buffer.byteLength(JSON.stringify(conversation), 'utf8')
-  return bytes > MAX_CONVERSATION_BYTES ? null : conversation
+  const messages = conversation.map(messageOf).filter(Boolean)
+  const bytes = Buffer.byteLength(JSON.stringify(messages), 'utf8')
+  return bytes > MAX_CONVERSATION_BYTES ? null : messages
 }
