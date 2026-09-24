@@ -35,6 +35,10 @@ function messageOf(entry) {
   if ((entry?.type === 'user' || entry?.type === 'assistant') && !entry.isMeta && entry.message) {
     return { role: entry.type, parts: textParts(entry.message.content) }
   }
+  // webuddy.conversation.v1：数据库型 agent 由采集端转成的 {role, text} 行。
+  if ((entry?.role === 'user' || entry?.role === 'assistant') && typeof entry.text === 'string') {
+    return { role: entry.role, parts: [entry.text] }
+  }
   const payload = entry?.payload
   if (payload?.type === 'message' && (payload.role === 'user' || payload.role === 'assistant')) {
     return { role: payload.role, parts: textParts(payload.content) }

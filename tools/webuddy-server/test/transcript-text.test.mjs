@@ -76,6 +76,16 @@ describe('readableTranscript', () => {
     assert.equal(readableTranscript(codex), '用户：加个重试\n助手：已加上')
   })
 
+  it('reads webuddy.conversation.v1 lines ({role, text})', () => {
+    const body = jsonl(
+      { role: 'system', text: 'sys', timestamp: null },
+      { role: 'user', text: '查一下慢查询', timestamp: null },
+      { role: 'tool', text: 'rows', timestamp: null },
+      { role: 'assistant', text: '加了索引', timestamp: null }
+    )
+    assert.equal(readableTranscript(body), '用户：查一下慢查询\n助手：加了索引')
+  })
+
   it('falls back to the raw slice for unknown formats', () => {
     assert.equal(readableTranscript('plain text log '.repeat(10), 20), 'plain text log plain')
   })
