@@ -25,8 +25,18 @@ export type SkillRun = {
 
 export type SkillsResponse = { userId: string; items: Skill[]; lastRun?: SkillRun | null }
 
-export type SkillExtractSkipReason = 'no-api-key' | 'no-new-data'
+export type SkillExtractSkipReason = 'no-api-key' | 'no-new-data' | 'in-progress'
 
 export type ExtractSkillsResult =
   | { skipped: SkillExtractSkipReason }
-  | { userId: string; model: string; extracted: number; inputTokens: number; outputTokens: number }
+  | {
+      userId: string
+      model: string
+      extracted: number
+      inputTokens: number
+      outputTokens: number
+      /** Absent on servers that predate skill_runs. */
+      status?: Exclude<SkillRunStatus, 'error'>
+      salvaged?: boolean
+      finishReason?: string | null
+    }
