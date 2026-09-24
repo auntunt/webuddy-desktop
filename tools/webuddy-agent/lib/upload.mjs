@@ -7,6 +7,7 @@
  * silently retrying forever.
  */
 
+import { randomUUID } from 'node:crypto'
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -52,7 +53,9 @@ export async function enqueue(record, transcriptText = null, conversation = null
   if (Array.isArray(conversation)) {
     payload.conversation = conversation
   }
-  const name = `${Date.now()}-${record.agent.id}-${record.session.id}.json`.replace(
+  // Why the random suffix: a parent and its subagents share a session id and can land in one ms.
+  const unique = randomUUID().slice(0, 8)
+  const name = `${Date.now()}-${record.agent.id}-${record.session.id}-${unique}.json`.replace(
     /[^A-Za-z0-9._-]/g,
     '_'
   )

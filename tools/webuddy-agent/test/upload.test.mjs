@@ -97,3 +97,14 @@ test('batch payload carries conversation when the outbox entry has one', async (
     { role: 'user', text: 'hi', timestamp: null }
   ])
 })
+
+test('same-session records enqueued in the same millisecond do not overwrite each other', async (t) => {
+  const { enqueue } = await import('../lib/upload.mjs')
+  rmSync(paths.outbox, { recursive: true, force: true })
+  t.mock.method(Date, 'now', () => 1_700_000_000_000)
+  const record = { agent: { id: 'claude-code' }, session: { id: 'parent' } }
+  const first = await enqueue(record, 'parent body')
+  const second = await enqueue(record, 'subagent body')
+  assert.notEqual(first, second)
+  assert.equal(readdirSync(paths.outbox).filter((f) => f.endsWith('.json')).length, 2)
+})
