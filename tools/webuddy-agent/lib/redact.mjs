@@ -32,15 +32,45 @@ export function maskPlaceholder(ruleId) {
   return `[redacted:${ruleId}]`
 }
 
+const WINDOWS_PATH = /^(?:[A-Za-z]:[\\/]|\\\\)/
+
 export function maskPath(value, homeDir) {
   if (typeof value !== 'string' || !value) {
     return value ?? null
   }
   const normalizedHome = homeDir?.replace(/[\\/]+$/, '')
-  const underHome =
-    value.startsWith(`${normalizedHome}/`) || value.startsWith(`${normalizedHome}\\`)
-  if (normalizedHome && (value === normalizedHome || underHome)) {
+  if (!normalizedHome) {
+    return value
+  }
+  // Why fold case and separators on Windows: NTFS paths compare case-insensitively.
+  const windows = WINDOWS_PATH.test(normalizedHome)
+  const fold = (path) => (windows ? path.replaceAll('\\', '/').toLowerCase() : path)
+  const home = fold(normalizedHome)
+  const candidate = fold(value)
+  if (candidate === home || candidate.startsWith(`${home}/`)) {
     return `~${value.slice(normalizedHome.length)}`
+  }
+  return value
+}
+
+// Linux home inside a WSL distro, seen either natively or through the Windows UNC share.
+const WSL_HOME = [
+  /^\/home\/[^/]+(?=\/|$)/,
+  /^\/root(?=\/|$)/,
+  /^(?:\\\\|\/\/)wsl(?:\.localhost|\$)[\\/][^\\/]+[\\/]home[\\/][^\\/]+(?=[\\/]|$)/i,
+  /^(?:\\\\|\/\/)wsl(?:\.localhost|\$)[\\/][^\\/]+[\\/]root(?=[\\/]|$)/i
+]
+
+/** Masks the WSL user's home; used for entries whose relPath carries the `wsl:` prefix. */
+export function maskWslPath(value) {
+  if (typeof value !== 'string' || !value) {
+    return value ?? null
+  }
+  for (const re of WSL_HOME) {
+    const match = re.exec(value)
+    if (match) {
+      return `~${value.slice(match[0].length)}`
+    }
   }
   return value
 }

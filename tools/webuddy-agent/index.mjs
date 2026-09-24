@@ -23,7 +23,7 @@ import { AGENTS, SCHEMA_VERSION } from './lib/schema.mjs'
 import { login } from './lib/login.mjs'
 import { pendingCount, pushPending } from './lib/upload.mjs'
 import { scanDiscovered } from './lib/scan.mjs'
-import { scanManifest } from './lib/manifest.mjs'
+import { manifestSummary, scanManifest } from './lib/manifest.mjs'
 import {
   ensureDeviceId,
   loadConfig,
@@ -51,7 +51,7 @@ function parseArgs(argv) {
     flags.add(name)
     if (eq !== -1) {
       values.set(name, arg.slice(eq + 1))
-    } else if (VALUE_FLAGS.has(name) && i + 1 < argv.length) {
+    } else if (VALUE_FLAGS.has(name) && i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
       values.set(name, argv[++i])
     }
   }
@@ -87,7 +87,6 @@ async function main() {
 
   if (command === 'scan') {
     const options = { force: flags.has('--force'), json: flags.has('--json'), homeDir }
-    let result
     if (flags.has('--manifest')) {
       const manifestPath = values.get('--manifest')
       if (!manifestPath) {
@@ -95,16 +94,14 @@ async function main() {
         process.exitCode = 2
         return
       }
-      result = await scanManifest(config, { ...options, manifestPath })
-      if (result.skipped.invalid > 0) {
-        process.exitCode = 1
-      }
-    } else {
-      process.stderr.write(
-        'webuddy-agent: discovery `scan` is deprecated; the app now uses `scan --manifest <file>`\n'
-      )
-      result = await scanDiscovered(config, options)
+      const result = await scanManifest(config, { ...options, manifestPath })
+      process.stdout.write(`${JSON.stringify(manifestSummary(result))}\n`)
+      return
     }
+    process.stderr.write(
+      'webuddy-agent: discovery `scan` is deprecated; the app now uses `scan --manifest <file>`\n'
+    )
+    const result = await scanDiscovered(config, options)
     if (!flags.has('--json')) {
       process.stdout.write(
         `${[
@@ -112,7 +109,7 @@ async function main() {
           `agents:   ${AGENTS.map((agent) => agent.id).join(', ')}`,
           `scanned:  ${result.total} session(s)`,
           `recorded: ${result.emitted.length}`,
-          `skipped:  ${result.skipped.unchanged} unchanged, ${result.skipped.filtered} outside workspace, ${result.skipped.unreadable} unreadable${result.skipped.invalid ? `, ${result.skipped.invalid} invalid` : ''}`,
+          `skipped:  ${result.skipped.unchanged} unchanged, ${result.skipped.filtered} outside workspace, ${result.skipped.unreadable} unreadable`,
           `consent:  正文随记录一起发送（脱敏后）`,
           `outbox:   ${await pendingCount()} record(s) queued at ${paths.outbox}`
         ].join('\n')}\n`

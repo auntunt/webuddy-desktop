@@ -2,7 +2,15 @@ import { test, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 
@@ -13,6 +21,7 @@ const { scanManifest } = await import('../lib/manifest.mjs')
 const { scanDiscovered } = await import('../lib/scan.mjs')
 const { localDateOf } = await import('../lib/schema.mjs')
 const { paths } = await import('../lib/state.mjs')
+const { maskPath, maskWslPath } = await import('../lib/redact.mjs')
 
 const INDEX = join(import.meta.dirname, '..', 'index.mjs')
 const config = {
@@ -206,18 +215,114 @@ function cli(args) {
   })
 }
 
-test('cli: manifest scan exits 0; missing or malformed manifest exits non-zero', () => {
-  const ok = cli([
-    'scan',
-    '--manifest',
-    writeManifest([entryFor(codexPath, 'codex', 'codex-session-1')])
-  ])
-  assert.equal(ok.status, 0, ok.stderr)
-  assert.equal(ok.stderr, '')
+test('cli: per-entry problems exit 0 with a JSON summary; run-level failures exit non-zero', () => {
+  const good = entryFor(codexPath, 'codex', 'codex-session-1')
+  const { filePath: _omit, ...noFilePath } = entryFor(codexPath, 'codex', 'x')
+  const path = join(stateHome, 'mixed.jsonl')
+  writeFileSync(
+    path,
+    `{not json\n${JSON.stringify(noFilePath)}\n${JSON.stringify(
+      entryFor(join(home, 'gone.jsonl'), 'codex', 'gone')
+    )}\n${JSON.stringify(good)}\n`
+  )
+  const run = cli(['scan', '--manifest', path])
+  assert.equal(run.status, 0, run.stderr)
+  assert.deepEqual(JSON.parse(run.stdout), { emitted: 1, skipped: 0, invalid: 2, unreadable: 1 })
+  assert.equal(run.stderr.trim().split('\n').length, 3)
+
   assert.notEqual(cli(['scan', '--manifest', join(stateHome, 'nope.jsonl')]).status, 0)
-  const bad = join(stateHome, 'bad.jsonl')
-  writeFileSync(bad, '{not json\n')
-  assert.notEqual(cli(['scan', '--manifest', bad]).status, 0)
+  assert.equal(cli(['scan', '--manifest', '--json']).status, 2)
+
+  // Outbox unwritable: a file where the directory should be.
+  rmSync(paths.outbox, { recursive: true, force: true })
+  rmSync(paths.state, { force: true })
+  writeFileSync(paths.outbox, '')
+  try {
+    assert.notEqual(cli(['scan', '--manifest', writeManifest([good])]).status, 0)
+  } finally {
+    rmSync(paths.outbox, { force: true })
+  }
+})
+
+test('a file vanishing between stat and read counts as unreadable', async () => {
+  const gone = join(home, 'vanished.jsonl')
+  const manifestPath = writeManifest([
+    entryFor(gone, 'codex', 'v1'),
+    entryFor(codexPath, 'codex', 'codex-session-1')
+  ])
+  const result = await scanManifest(config, {
+    manifestPath,
+    homeDir: home,
+    io: { stat: async () => ({ bytes: 10, mtimeMs: 1 }) }
+  })
+  assert.equal(result.skipped.unreadable, 1)
+  assert.equal(result.emitted.length, 1)
+})
+
+test(
+  'EACCES on a transcript counts as unreadable',
+  { skip: process.platform === 'win32' || process.getuid?.() === 0 },
+  async () => {
+    const locked = join(home, 'locked.jsonl')
+    writeFileSync(locked, '{}\n')
+    chmodSync(locked, 0o000)
+    try {
+      const result = await scanManifest(config, {
+        manifestPath: writeManifest([entryFor(locked, 'codex', 'l1')]),
+        homeDir: home
+      })
+      assert.equal(result.skipped.unreadable, 1)
+      assert.equal(result.emitted.length, 0)
+    } finally {
+      chmodSync(locked, 0o600)
+    }
+  }
+)
+
+test('sessions the legacy scan already sent are re-sent once to backfill the conversation', async () => {
+  await scanDiscovered(config, { homeDir: home })
+  rmSync(paths.outbox, { recursive: true, force: true })
+  const manifestPath = writeManifest([entryFor(claudePath, 'claude-code', 'claude-session-1')])
+  const first = await scanManifest(config, { manifestPath, homeDir: home })
+  assert.equal(first.emitted.length, 1)
+  assert.equal(outbox()[0].conversation.length, 1)
+  const second = await scanManifest(config, { manifestPath, homeDir: home })
+  assert.equal(second.emitted.length, 0)
+  assert.equal(second.skipped.unchanged, 1)
+})
+
+test('maskPath: Windows homes compare case-insensitively and never match a sibling', () => {
+  assert.equal(maskPath('c:\\users\\ALICE\\proj', 'C:\\Users\\alice'), '~\\proj')
+  assert.equal(maskPath('C:/Users/alice/proj', 'C:\\Users\\alice\\'), '~/proj')
+  assert.equal(maskPath('C:\\Users\\alice2\\proj', 'C:\\Users\\alice'), 'C:\\Users\\alice2\\proj')
+  assert.equal(maskPath('/Users/alice2/p', '/Users/alice'), '/Users/alice2/p')
+  assert.equal(maskPath('/Users/alice/p', ''), '/Users/alice/p')
+})
+
+test('maskWslPath: native and UNC WSL homes', () => {
+  assert.equal(maskWslPath('/home/bob/proj'), '~/proj')
+  assert.equal(maskWslPath('/root'), '~')
+  assert.equal(maskWslPath('/homes/bob'), '/homes/bob')
+  assert.equal(
+    maskWslPath('\\\\wsl.localhost\\Ubuntu\\home\\bob\\.claude\\x.jsonl'),
+    '~\\.claude\\x.jsonl'
+  )
+  assert.equal(maskWslPath('\\\\wsl$\\Debian\\home\\bob'), '~')
+})
+
+test('WSL entries mask cwd and filePath through the distro home', async () => {
+  const unc = '\\\\wsl.localhost\\Ubuntu\\home\\bob\\.codex\\s.jsonl'
+  const manifestPath = writeManifest([
+    entryFor(unc, 'codex', 'w1', {
+      relPath: 'wsl:Ubuntu/.codex/s.jsonl',
+      transcriptFormat: 'webuddy.conversation.v1',
+      cwd: '/home/bob/proj'
+    })
+  ])
+  const { emitted } = await scanManifest(config, { manifestPath, homeDir: home })
+  assert.equal(emitted[0].workspace.cwd, '~/proj')
+  assert.equal(emitted[0].transcript.path, '~\\.codex\\s.jsonl')
+  assert.ok(!JSON.stringify(emitted[0]).includes('bob'))
 })
 
 test('cli: legacy discovery scan prints a deprecation notice', () => {
