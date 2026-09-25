@@ -50,6 +50,20 @@ export type AgentStateHistoryEntry = {
 /** Maximum number of history entries kept per agent to bound memory. */
 export const AGENT_STATE_HISTORY_MAX = 20
 
+/** One recorded tool invocation in an agent's recent action feed (session canvas). */
+export type AgentActionHistoryEntry = {
+  toolName: string
+  /** Truncated preview; null when the payload carried no toolInput. */
+  toolInput: string | null
+  /** When this action was observed. */
+  at: number
+}
+
+/** Maximum action-history entries kept per agent to bound memory. */
+export const AGENT_ACTION_HISTORY_MAX = 30
+/** Maximum character length for a stored action-history toolInput preview. */
+export const AGENT_ACTION_HISTORY_INPUT_MAX_LENGTH = 200
+
 export type AgentStatusOrchestrationContext = {
   taskId: string
   dispatchId: string
@@ -121,6 +135,10 @@ export type AgentStatusEntry = {
   terminalTitle?: string
   /** Rolling log of previous states, capped at AGENT_STATE_HISTORY_MAX. */
   stateHistory: AgentStateHistoryEntry[]
+  /** Rolling log of recent tool invocations, capped at AGENT_ACTION_HISTORY_MAX.
+   *  Optional new field (STA session-canvas): absent on old snapshots/remote hosts
+   *  that predate it — readers treat absence as []. Cleared on a session boundary. */
+  actionHistory?: AgentActionHistoryEntry[]
   /** Name of the tool the agent is currently using (e.g. "Edit", "Bash"). */
   toolName?: string
   /** Short preview of the tool input (e.g. file path, command). */

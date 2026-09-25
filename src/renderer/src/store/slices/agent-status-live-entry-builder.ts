@@ -6,6 +6,7 @@ import {
   type AgentStateHistoryEntry,
   type AgentStatusEntry
 } from '../../../../shared/agent-status-types'
+import { nextAgentActionHistory } from '../../../../shared/agent-status-action-history'
 import {
   agentProviderSessionsEqual,
   getAgentResumeArgv,
@@ -250,6 +251,8 @@ export function buildAgentStatusLiveEntry(
     tabId: statusTabId,
     terminalTitle: effectiveTitle,
     stateHistory: history,
+    // prettier-ignore
+    actionHistory: nextAgentActionHistory(existing?.actionHistory, payload.toolName, payload.toolInput, updatedAt, payload.sessionBoundary === true),
     toolName: payload.toolName,
     toolInput: payload.toolInput,
     interactivePrompt: payload.interactivePrompt,
