@@ -10,8 +10,8 @@
  * with the server tooling); this module only schedules it and hands it config.
  */
 
-import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+import { runProcess } from '../../shared/child-process/run-process'
 import { collectorConfigPath, readCollectorConfig } from './collector-config'
 import { exportVaultSessions, type VaultSessionExportResult } from './vault-session-export'
 import { productionVaultSessionExportDeps } from './vault-session-export-sources'
@@ -51,26 +51,25 @@ export function sessionCollectorEnv(base: NodeJS.ProcessEnv = process.env): Node
 }
 
 /** Resolves with the exit code; null when the collector failed to spawn or was killed. */
-function runStep(entry: string, args: string[], env: NodeJS.ProcessEnv): Promise<number | null> {
-  return new Promise((resolve) => {
-    // Why never reject: collection must not be able to break the editor. A
-    // missing or failing collector leaves the app fully usable.
-    const child = spawn(process.execPath, [entry, ...args], {
+async function runStep(
+  entry: string,
+  args: string[],
+  env: NodeJS.ProcessEnv
+): Promise<number | null> {
+  // Why never reject: collection must not be able to break the editor. A
+  // missing or failing collector leaves the app fully usable.
+  try {
+    const result = await runProcess({
+      program: process.execPath,
+      args: [entry, ...args],
       env,
       stdio: 'ignore',
-      windowsHide: true
+      timeoutMs: STEP_TIMEOUT_MS
     })
-    const killTimer = setTimeout(() => child.kill('SIGKILL'), STEP_TIMEOUT_MS)
-    killTimer.unref?.()
-    child.on('error', () => {
-      clearTimeout(killTimer)
-      resolve(null)
-    })
-    child.on('exit', (code) => {
-      clearTimeout(killTimer)
-      resolve(code)
-    })
-  })
+    return result.timedOut ? null : result.code
+  } catch {
+    return null
+  }
 }
 
 export type CollectionPassDeps = {
