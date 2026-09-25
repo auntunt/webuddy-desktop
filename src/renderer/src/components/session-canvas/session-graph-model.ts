@@ -168,3 +168,45 @@ export function buildSessionGraph(inputs: SessionCanvasInputs): SessionGraph {
   })
   return { nodes: [...groupNodes, ...memberNodes], edges }
 }
+
+function sameNodeData(a: SessionGraphNode['data'], b: SessionGraphNode['data']): boolean {
+  if ('kind' in a && 'kind' in b) {
+    if (a.kind === 'live' && b.kind === 'live') {
+      return a.entry === b.entry && a.repoLabel === b.repoLabel
+    }
+    // Why: each 60 s poll returns fresh objects for otherwise identical external sessions.
+    return (
+      a.kind === 'external' &&
+      b.kind === 'external' &&
+      a.repoLabel === b.repoLabel &&
+      (a.session === b.session || JSON.stringify(a.session) === JSON.stringify(b.session))
+    )
+  }
+  return (
+    'label' in a &&
+    'label' in b &&
+    a.label === b.label &&
+    a.childOffset?.x === b.childOffset?.x &&
+    a.childOffset?.y === b.childOffset?.y
+  )
+}
+
+/** Swaps in the previous graph's `data` object for every node whose inputs are unchanged. */
+export function reuseUnchangedNodeData(
+  previous: SessionGraph | null,
+  next: SessionGraph
+): SessionGraph {
+  if (!previous) {
+    return next
+  }
+  const previousData = new Map(previous.nodes.map((node) => [node.id, node.data]))
+  return {
+    edges: next.edges,
+    nodes: next.nodes.map((node) => {
+      const prior = previousData.get(node.id)
+      return prior && prior !== node.data && sameNodeData(prior, node.data)
+        ? { ...node, data: prior }
+        : node
+    })
+  }
+}

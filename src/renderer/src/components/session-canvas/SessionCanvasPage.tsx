@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { memo, useCallback, useMemo, useState } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -37,9 +37,10 @@ import type { SessionCanvasFilters } from './session-graph-types'
 import { useSessionCanvasData } from './use-session-canvas-data'
 import { useSessionConnectGesture } from './use-session-connect-gesture'
 
+// Why memo: graph rebuilds keep unchanged cards' `data` objects, so unrelated pings skip them.
 const NODE_TYPES: NodeTypes = {
-  live: LiveSessionCard,
-  external: ExternalSessionCard,
+  live: memo(LiveSessionCard),
+  external: memo(ExternalSessionCard),
   sessionGroup: SessionGroupNode
 }
 const EDGE_TYPES: EdgeTypes = { session: SessionEdge }

@@ -81,23 +81,34 @@ function buildRepoIndex(inputs: SessionCanvasInputs): RepoIndex {
   }
 }
 
+/** Provider-session keys of live panes, built once so external dedupe is a lookup per session. */
+function buildLiveSessionKeys(live: AgentStatusEntry[]): Set<string> {
+  const keys = new Set<string>()
+  for (const entry of live) {
+    if (!entry.providerSession) {
+      continue
+    }
+    const agent = normalizeCanvasAgent(entry.agentType)
+    const { id, transcriptPath } = entry.providerSession
+    if (id !== '') {
+      keys.add(`${agent}\0id\0${id}`)
+    }
+    if (transcriptPath !== undefined) {
+      keys.add(`${agent}\0path\0${normalizeRuntimePathForComparison(transcriptPath)}`)
+    }
+  }
+  return keys
+}
+
 function isDuplicateOfLive(
   session: SessionCanvasExternalSession,
-  live: AgentStatusEntry[]
+  liveKeys: ReadonlySet<string>
 ): boolean {
   const agent = normalizeCanvasAgent(session.agent)
-  const filePath = normalizeRuntimePathForComparison(session.filePath)
-  return live.some((entry) => {
-    if (normalizeCanvasAgent(entry.agentType) !== agent || !entry.providerSession) {
-      return false
-    }
-    const { id, transcriptPath } = entry.providerSession
-    return (
-      (id !== '' && id === session.providerSessionId) ||
-      (transcriptPath !== undefined &&
-        normalizeRuntimePathForComparison(transcriptPath) === filePath)
-    )
-  })
+  return (
+    liveKeys.has(`${agent}\0id\0${session.providerSessionId}`) ||
+    liveKeys.has(`${agent}\0path\0${normalizeRuntimePathForComparison(session.filePath)}`)
+  )
 }
 
 function matchesQuery(query: string, fields: (string | null | undefined)[]): boolean {
@@ -221,8 +232,10 @@ export function resolveCanvasMembership(inputs: SessionCanvasInputs): CanvasMemb
     })
   }
 
+  const liveKeys =
+    inputs.externalSessions.length > 0 ? buildLiveSessionKeys(inputs.liveEntries) : null
   for (const session of inputs.externalSessions) {
-    if (isDuplicateOfLive(session, inputs.liveEntries)) {
+    if (liveKeys && isDuplicateOfLive(session, liveKeys)) {
       continue
     }
     const repoId = session.cwd ? repos.repoIdForPath(session.cwd) : null
