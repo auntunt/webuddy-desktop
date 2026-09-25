@@ -97,7 +97,9 @@ describe('resolveSshHostTargetId', () => {
     await expect(
       resolveSshHostTargetId(clientReturning([]), 'openclaw', ENVIRONMENTS)
     ).rejects.toMatchObject({
-      data: { nextSteps: expect.arrayContaining(['This Orca host has no SSH targets registered.']) }
+      data: {
+        nextSteps: expect.arrayContaining(['This Webuddy host has no SSH targets registered.'])
+      }
     })
   })
 })

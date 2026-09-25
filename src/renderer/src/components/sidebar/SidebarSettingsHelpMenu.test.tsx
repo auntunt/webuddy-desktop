@@ -243,7 +243,7 @@ describe('SidebarSettingsHelpMenu', () => {
 
   it('renders Restart Orca by default', () => {
     const html = renderToStaticMarkup(<SidebarSettingsHelpMenu />)
-    expect(html).toContain('Restart Orca')
+    expect(html).toContain('Restart Webuddy')
   })
 
   it('renders Docs link', () => {
@@ -268,7 +268,7 @@ describe('SidebarSettingsHelpMenu', () => {
     expect(html).toContain('M16.0742 4.45014C14.9244 3.92097 13.7106 3.54556 12.4638 3.3335')
   })
 
-  it('opens Discord invite through the shell bridge', async () => {
+  it('opens the Discord item (Webuddy community page) through the shell bridge', async () => {
     const container = await renderMenu()
     const discordButton = findMenuItem(container, 'Discord')
 
@@ -276,7 +276,7 @@ describe('SidebarSettingsHelpMenu', () => {
       discordButton.click()
     })
 
-    expect(mocks.shellOpenUrl).toHaveBeenCalledWith('https://discord.gg/fzjDKHxv8Q')
+    expect(mocks.shellOpenUrl).toHaveBeenCalledWith('https://cloudwaveai.cn')
   })
 
   it('renders X link', () => {

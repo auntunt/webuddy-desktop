@@ -179,17 +179,17 @@ describe('OrcaRuntimeService', () => {
     try {
       execFileSync('git', ['init'], { cwd: tempRoot, stdio: 'ignore' })
       const result = await runtime.setupProjectExistingFolder({
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         hostId: 'runtime:env-1',
         path: tempRoot,
         kind: 'git',
         setupMethod: 'imported-existing-folder'
       })
 
-      expect(result.project.id).toBe('github:cloudwave/webuddy')
+      expect(result.project.id).toBe('github:stablyai/orca')
       expect(result.repo.path).toBe(tempRoot)
       expect(result.setup).toMatchObject({
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         path: tempRoot,
         setupMethod: 'imported-existing-folder'
       })
@@ -365,14 +365,14 @@ describe('OrcaRuntimeService', () => {
     try {
       execFileSync('git', ['init'], { cwd: tempRoot, stdio: 'ignore' })
       const first = await runtime.setupProjectExistingFolder({
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         hostId: 'runtime:env-1',
         path: tempRoot,
         kind: 'git',
         setupMethod: 'imported-existing-folder'
       })
       const second = await runtime.setupProjectExistingFolder({
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         hostId: 'runtime:env-2',
         path: tempRoot,
         kind: 'git',
@@ -565,7 +565,7 @@ describe('OrcaRuntimeService', () => {
 
     try {
       const result = await runtime.setupProjectClone({
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         hostId: 'runtime:env-1',
         url: 'https://example.com/orca.git',
         destination
@@ -619,7 +619,7 @@ describe('OrcaRuntimeService', () => {
     try {
       const cloneError = await runtime
         .setupProjectClone({
-          projectId: 'github:cloudwave/webuddy',
+          projectId: 'github:stablyai/orca',
           hostId: 'ssh:openclaw',
           url: 'https://example.com/orca.git',
           destination
@@ -627,7 +627,7 @@ describe('OrcaRuntimeService', () => {
         .catch((error: unknown) => error)
       const existingFolderError = await runtime
         .setupProjectExistingFolder({
-          projectId: 'github:cloudwave/webuddy',
+          projectId: 'github:stablyai/orca',
           hostId: 'ssh:openclaw',
           path: existingFolder,
           kind: 'git'

@@ -140,7 +140,7 @@ describe('provider usage error copy', () => {
     const grok = provider({
       provider: 'grok',
       error:
-        'Grok sign-in expired — run grok on the computer running Orca; sign in if prompted. No chat message is needed.',
+        'Grok sign-in expired — run grok on the computer running Webuddy; sign in if prompted. No chat message is needed.',
       usageMetadata: {
         failureKind: 'delegated-refresh-required',
         source: 'oauth'
@@ -149,7 +149,7 @@ describe('provider usage error copy', () => {
 
     expect(getProviderUsageStatusLabel(grok)).toBe('Run Grok to refresh')
     expect(getProviderUsageErrorMessage(grok)).toBe(
-      'Run grok in a terminal on the computer running Orca and wait for it to start. If prompted, complete sign-in, then retry usage. You do not need to send a chat message.'
+      'Run grok in a terminal on the computer running Webuddy and wait for it to start. If prompted, complete sign-in, then retry usage. You do not need to send a chat message.'
     )
   })
 
@@ -165,7 +165,7 @@ describe('provider usage error copy', () => {
 
     expect(getProviderUsageStatusLabel(kimi)).toBe('Run Kimi to refresh')
     expect(getProviderUsageErrorMessage(kimi)).toBe(
-      'Run kimi in a terminal on the computer running Orca and wait for it to start, then retry usage.'
+      'Run kimi in a terminal on the computer running Webuddy and wait for it to start, then retry usage.'
     )
   })
 

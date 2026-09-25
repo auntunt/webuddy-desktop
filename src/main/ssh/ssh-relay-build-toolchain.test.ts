@@ -189,7 +189,7 @@ describe('formatNodeHeadersDownloadError', () => {
   it('reports an Orca defect, not a host problem, when headers were exported and ignored', () => {
     const msg = formatNodeHeadersDownloadError(HEADERS_REFUSED, '/usr/local')
     expect(msg).toContain('/usr/local/include/node')
-    expect(msg).toContain('Orca defect')
+    expect(msg).toContain('Webuddy defect')
     expect(msg).not.toContain('no local headers matching its own version')
     expect(msg).not.toContain('nvm, fnm, volta, n')
     expect(msg).toContain('ECONNREFUSED')

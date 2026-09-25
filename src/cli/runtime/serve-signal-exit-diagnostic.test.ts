@@ -85,7 +85,7 @@ describe('serveSignalExitError', () => {
 
   it('stays clear when neither a code nor a signal is reported', () => {
     expect(serveSignalExitError(null, 'darwin').message).toBe(
-      'Orca serve exited without reporting an exit code or signal.'
+      'Webuddy serve exited without reporting an exit code or signal.'
     )
   })
 })

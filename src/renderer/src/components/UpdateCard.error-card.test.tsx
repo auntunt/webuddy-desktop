@@ -108,7 +108,7 @@ describe('UpdateCard Windows signature failures', () => {
     expect(screen.queryByText(message)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Check official releases' }))
-    expect(openUrl).toHaveBeenCalledWith('https://github.com/stablyai/orca/releases')
+    expect(openUrl).toHaveBeenCalledWith('https://github.com/cloudwave/webuddy/releases')
     expect(openUrl).not.toHaveBeenCalledWith(expect.stringContaining('/tag/'))
   })
 
@@ -218,7 +218,7 @@ function showPackageRecovery(recovery = PACKAGE_RECOVERY): void {
   act(() =>
     useAppStore.getState().setUpdateStatus({
       state: 'error',
-      message: 'Quit Orca before running the system package install command.',
+      message: 'Quit Webuddy before running the system package install command.',
       recovery
     })
   )
@@ -242,13 +242,15 @@ describe('UpdateCard Linux package-install recovery', () => {
   it('renders an initial recovery snapshot with its versioned release fallback', () => {
     renderWithInitialStatus({
       state: 'error',
-      message: 'Quit Orca before running the system package install command.',
+      message: 'Quit Webuddy before running the system package install command.',
       recovery: PACKAGE_RECOVERY
     })
 
     expect(screen.getByText('Manual Install Required')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Download Manually' }))
-    expect(openUrl).toHaveBeenCalledWith('https://github.com/stablyai/orca/releases/tag/v1.4.200')
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://github.com/cloudwave/webuddy/releases/tag/v1.4.200'
+    )
   })
 
   it('uses the recovery version when cached update state is stale', () => {
@@ -256,7 +258,9 @@ describe('UpdateCard Linux package-install recovery', () => {
     showPackageRecovery()
 
     fireEvent.click(screen.getByRole('button', { name: 'Download Manually' }))
-    expect(openUrl).toHaveBeenCalledWith('https://github.com/stablyai/orca/releases/tag/v1.4.200')
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://github.com/cloudwave/webuddy/releases/tag/v1.4.200'
+    )
   })
 
   it.each([
@@ -299,7 +303,9 @@ describe('UpdateCard Linux package-install recovery', () => {
     await flushActions()
 
     fireEvent.click(screen.getByRole('button', { name: 'Download Manually' }))
-    expect(openUrl).toHaveBeenCalledWith('https://github.com/stablyai/orca/releases/tag/v1.4.200')
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://github.com/cloudwave/webuddy/releases/tag/v1.4.200'
+    )
   })
 
   it('resets command discovery when a newer package cycle replaces the recovery', async () => {
@@ -325,7 +331,7 @@ describe('UpdateCard Linux package-install recovery', () => {
 
   it('links unusable package metadata to the release without offering a futile retry', () => {
     const message =
-      'The downloaded package metadata could not be verified. Quit Orca before downloading and installing the update from the official release page.'
+      'The downloaded package metadata could not be verified. Quit Webuddy before downloading and installing the update from the official release page.'
     renderWithInitialStatus({
       state: 'error',
       message,
@@ -338,7 +344,9 @@ describe('UpdateCard Linux package-install recovery', () => {
     expect(screen.queryByText('Manual Install Required')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Retry Download' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Download Manually' }))
-    expect(openUrl).toHaveBeenCalledWith('https://github.com/stablyai/orca/releases/tag/v1.4.200')
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://github.com/cloudwave/webuddy/releases/tag/v1.4.200'
+    )
   })
 
   it('keeps generic errors on the generic card when no recovery is attached', () => {

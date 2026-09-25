@@ -16,7 +16,7 @@ describe('pairing offer', () => {
 
   it('encode then decode round-trips correctly', () => {
     const url = encodePairingOffer(offer)
-    expect(url).toMatch(/^orca:\/\/pair\?code=/)
+    expect(url).toMatch(/^webuddy:\/\/pair\?code=/)
 
     const decoded = decodePairingOffer(url)
     expect(decoded).toEqual(offer)

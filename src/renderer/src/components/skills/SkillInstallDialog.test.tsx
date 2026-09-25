@@ -119,7 +119,7 @@ function installApi(previewInstall: ReturnType<typeof vi.fn>) {
 }
 
 async function inspectSkill(expectedDescription = 'A private skill'): Promise<void> {
-  fireEvent.change(screen.getByLabelText('Orca skill link'), {
+  fireEvent.change(screen.getByLabelText('Webuddy skill link'), {
     target: { value: 'https://app.cloudwaveai.cn/skills/share/share_1' }
   })
   fireEvent.click(screen.getByRole('button', { name: 'Inspect skill' }))
@@ -419,7 +419,7 @@ describe('SkillInstallDialog', () => {
     })
     render(<SkillInstallDialog open onOpenChange={onOpenChange} />)
 
-    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Orca skill link' }))
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Webuddy skill link' }))
     // Why: the submit sits in the footer beside Close, so Enter in the field is
     // the keyboard path rather than tabbing past the back-out action.
     const footerButtons = screen
@@ -430,7 +430,7 @@ describe('SkillInstallDialog', () => {
       'Inspect skill'
     ])
     await user.type(
-      screen.getByRole('textbox', { name: 'Orca skill link' }),
+      screen.getByRole('textbox', { name: 'Webuddy skill link' }),
       'https://app.cloudwaveai.cn/skills/share/share_1'
     )
     await user.keyboard('{Enter}')
@@ -447,7 +447,7 @@ describe('SkillInstallDialog', () => {
     Object.defineProperty(window, 'api', { configurable: true, value: { skills } })
     render(<SkillInstallDialog open onOpenChange={() => undefined} />)
 
-    fireEvent.change(screen.getByLabelText('Orca skill link'), {
+    fireEvent.change(screen.getByLabelText('Webuddy skill link'), {
       target: { value: 'https://app.cloudwaveai.cn/skills/share/share_1' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Inspect skill' }))

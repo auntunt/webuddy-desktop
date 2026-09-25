@@ -222,10 +222,10 @@ describe('orca skills CLI', () => {
       'get                Print a version-matched skill guide'
     )
     expect(String(logSpy.mock.calls[1]?.[0])).toContain(
-      'install            Install bundled Orca skills'
+      'install            Install bundled Webuddy skills'
     )
     expect(String(logSpy.mock.calls[1]?.[0])).toContain(
-      'update             Update already-installed Orca skills'
+      'update             Update already-installed Webuddy skills'
     )
     expect(String(logSpy.mock.calls[2]?.[0])).toContain('Skills:\n  skills installed')
     expect(String(logSpy.mock.calls[2]?.[0])).toContain('skills update')

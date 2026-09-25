@@ -218,11 +218,11 @@ describe('LinearAgentSkillSetupPrompt reminder toast', () => {
       'Enable agents to read and edit the attached Linear ticket.'
     )
     expect(toast.warning).toHaveBeenCalledWith(
-      'Orca CLI and Linear skill are missing',
+      'Webuddy CLI and Linear skill are missing',
       expect.objectContaining({
         id: 'linear-agent-skill-setup-orca.linearTicketsSkill.setupDismissed.host',
         description:
-          'Install the Orca CLI and the Linear skill to enable your agents to read and edit Linear tasks.',
+          'Install the Webuddy CLI and the Linear skill to enable your agents to read and edit Linear tasks.',
         action: {
           label: 'Set up',
           onClick: expect.any(Function)
@@ -237,9 +237,9 @@ describe('LinearAgentSkillSetupPrompt reminder toast', () => {
     await renderPrompt({ linked: true, remote: false, surface: 'modal' })
 
     expect(toast.warning).toHaveBeenCalledWith(
-      'Orca CLI is missing',
+      'Webuddy CLI is missing',
       expect.objectContaining({
-        description: 'Install the Orca CLI to enable your agents to read and edit Linear tasks.'
+        description: 'Install the Webuddy CLI to enable your agents to read and edit Linear tasks.'
       })
     )
   })
@@ -249,10 +249,10 @@ describe('LinearAgentSkillSetupPrompt reminder toast', () => {
     await renderPrompt({ linked: true, remote: true, surface: 'modal' })
 
     expect(toast.warning).toHaveBeenCalledWith(
-      'Orca CLI and Linear skill are missing',
+      'Webuddy CLI and Linear skill are missing',
       expect.objectContaining({
         description:
-          'Install the Orca CLI and the Linear skill to enable your agents to read and edit Linear tasks. Remote agent environments may need their own setup.'
+          'Install the Webuddy CLI and the Linear skill to enable your agents to read and edit Linear tasks. Remote agent environments may need their own setup.'
       })
     )
   })
@@ -274,10 +274,10 @@ describe('LinearAgentSkillSetupPrompt reminder toast', () => {
     await renderPrompt(wslProps)
 
     expect(toast.warning).toHaveBeenCalledWith(
-      'Orca CLI and Linear skill are missing',
+      'Webuddy CLI and Linear skill are missing',
       expect.objectContaining({
         description:
-          'Install the Orca CLI and the Linear skill to enable your agents to read and edit Linear tasks. This setup runs in the selected WSL agent runtime.'
+          'Install the Webuddy CLI and the Linear skill to enable your agents to read and edit Linear tasks. This setup runs in the selected WSL agent runtime.'
       })
     )
   })

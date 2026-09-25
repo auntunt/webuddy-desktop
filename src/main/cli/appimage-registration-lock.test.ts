@@ -33,7 +33,7 @@ describe('withAppImageRegistrationLock', () => {
 
     await expect(
       withAppImageRegistrationLock('/cache/orca/appimage', async () => 'done')
-    ).rejects.toThrow(/Timed out waiting for another Orca process[\s\S]*remove .*\.lock/)
+    ).rejects.toThrow(/Timed out waiting for another Webuddy process[\s\S]*remove .*\.lock/)
   })
 
   it('releases the lock when the operation throws', async () => {

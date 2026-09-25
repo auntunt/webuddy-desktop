@@ -371,7 +371,7 @@ describe('RuntimeClient orchestration recovery identity', () => {
         retrySafe: false,
         nextSteps: expect.arrayContaining([
           'Inspect the terminal output and agent state without sending input.',
-          'Update Orca on the execution host before future prompt sends that need durable retry.'
+          'Update Webuddy on the execution host before future prompt sends that need durable retry.'
         ])
       }
     })

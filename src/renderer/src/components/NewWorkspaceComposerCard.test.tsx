@@ -790,7 +790,7 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
     })
 
     expect(findRunTargetItem('Add SSH host')).toBeTruthy()
-    expect(findRunTargetItem('Add Remote Orca Server')).toBeTruthy()
+    expect(findRunTargetItem('Add Remote Webuddy Server')).toBeTruthy()
   })
 
   it('opens the remote Orca server add dialog over the composer without leaving for Settings', () => {
@@ -801,7 +801,7 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
 
     openRunTargetPicker(current.container)
     act(() => findRunTargetItem('Add host')?.click())
-    act(() => findRunTargetItem('Add Remote Orca Server')?.click())
+    act(() => findRunTargetItem('Add Remote Webuddy Server')?.click())
 
     const dialog = document.body.querySelector('[data-testid="add-remote-host-dialog"]')
     expect(dialog?.getAttribute('data-mode')).toBe('server')

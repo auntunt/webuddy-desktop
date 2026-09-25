@@ -92,7 +92,7 @@ describe('orca search discovery surfaces', () => {
   it('is listed in the root help', () => {
     expect(ROOT_HELP_TEXT_PRIMARY).toContain('Agent Sessions:')
     expect(ROOT_HELP_TEXT_PRIMARY).toContain(
-      '  search                    Search the full text of agent sessions on one Orca host'
+      '  search                    Search the full text of agent sessions on one Webuddy host'
     )
     expect(ROOT_HELP_TEXT_SECONDARY).toContain('  orca search --index-status [--json]')
   })

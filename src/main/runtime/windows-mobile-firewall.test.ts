@@ -171,7 +171,7 @@ describe('windows mobile firewall', () => {
     const encoded = outerScript.match(/'-EncodedCommand', '([^']+)'/)?.[1]
     expect(encoded).toBeTruthy()
     const repairScript = Buffer.from(encoded!, 'base64').toString('utf16le')
-    expect(repairScript).toContain("-Name 'Orca.MobilePairing'")
+    expect(repairScript).toContain("-Name 'Webuddy.MobilePairing'")
     expect(repairScript).toContain(
       "Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' }"
     )

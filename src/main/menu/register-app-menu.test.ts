@@ -390,8 +390,8 @@ describe('registerAppMenu', () => {
     expect(helpLabels).toEqual(
       expect.arrayContaining([
         'Report Crash...',
-        'Getting Started with Orca',
-        'Explore Orca',
+        'Getting Started with Webuddy',
+        'Explore Webuddy',
         'Check for Updates...'
       ])
     )
@@ -413,8 +413,8 @@ describe('registerAppMenu', () => {
     expect(helpLabels).toEqual([
       'Report Crash...',
       undefined,
-      'Explore Orca',
-      'Getting Started with Orca'
+      'Explore Webuddy',
+      'Getting Started with Webuddy'
     ])
   })
 
@@ -423,7 +423,7 @@ describe('registerAppMenu', () => {
     registerAppMenu(options)
 
     const setupGuideItem = getSubmenu(getTemplate(), 'Help').find(
-      (entry) => entry.label === 'Getting Started with Orca'
+      (entry) => entry.label === 'Getting Started with Webuddy'
     )
     expect(setupGuideItem?.accelerator).toBeUndefined()
 
@@ -439,7 +439,7 @@ describe('registerAppMenu', () => {
     registerAppMenu(options)
 
     const featureTourItem = getSubmenu(getTemplate(), 'Help').find(
-      (entry) => entry.label === 'Explore Orca'
+      (entry) => entry.label === 'Explore Webuddy'
     )
     expect(featureTourItem?.accelerator).toBeUndefined()
 
@@ -492,7 +492,7 @@ describe('registerAppMenu', () => {
     expect(automationsItem?.type).toBe('checkbox')
     expect(automationsItem?.checked).toBe(false)
 
-    const mobileItem = appearanceSubmenu.find((item) => item.label === 'Show Orca Mobile Button')
+    const mobileItem = appearanceSubmenu.find((item) => item.label === 'Show Webuddy Mobile Button')
     expect(mobileItem?.type).toBe('checkbox')
     expect(mobileItem?.checked).toBe(true)
 
@@ -518,7 +518,7 @@ describe('registerAppMenu', () => {
       .find((item) => item.label === 'Show Automations Button')
       ?.click?.({} as never, {} as never, {} as never)
     appearanceSubmenu
-      .find((item) => item.label === 'Show Orca Mobile Button')
+      .find((item) => item.label === 'Show Webuddy Mobile Button')
       ?.click?.({} as never, {} as never, {} as never)
     appearanceSubmenu
       .find((item) => item.label === 'Show Titlebar App Name')

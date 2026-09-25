@@ -93,7 +93,7 @@ describe('what a rejection shows the user', () => {
     // ourselves. It has no user-facing meaning, so it gets copy rather than the token.
     const shown = notice(DISPATCH_REJECTED_QUEUE_FULL)
     expect(shown).not.toContain('queue is full')
-    expect(shown).toBe('Orca could not send your message — Retry to send it again.')
+    expect(shown).toBe('Webuddy could not send your message — Retry to send it again.')
   })
 })
 

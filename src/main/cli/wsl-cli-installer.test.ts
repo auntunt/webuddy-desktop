@@ -37,7 +37,7 @@ function makeHostStatus(
 // persisted managed script still names the pre-native Windows batch launcher.
 const PRE_RC4_MANAGED_WSL_LAUNCHER = `#!/usr/bin/env bash
 set -euo pipefail
-# Orca managed WSL CLI launcher
+# Webuddy managed WSL CLI launcher
 # ORCA_WIN_LAUNCHER_B64=QzpcUHJvZ3JhbSBGaWxlc1xPcmNhXHJlc291cmNlc1xiaW5cb3JjYS5jbWQ=
 ORCA_WIN_LAUNCHER='C:\\Program Files\\Orca\\resources\\bin\\orca.cmd'
 ORCA_BRIDGE_PS1='/home/alice/.local/share/orca/orca-wsl-bridge.ps1'
@@ -94,7 +94,7 @@ function createWslRunner(
       }
       if (
         files.has(bridgePath) &&
-        !files.get(bridgePath)?.includes('# Orca managed WSL CLI PowerShell bridge')
+        !files.get(bridgePath)?.includes('# Webuddy managed WSL CLI PowerShell bridge')
       ) {
         throw new Error('__ORCA_CONFLICT__')
       }
@@ -106,7 +106,7 @@ function createWslRunner(
         )?.[1] ?? ''
       files.set(commandPath, launcher)
       files.set(bridgePath, bridge)
-      if (files.get(legacyCommandPath)?.includes('# Orca managed WSL CLI launcher')) {
+      if (files.get(legacyCommandPath)?.includes('# Webuddy managed WSL CLI launcher')) {
         files.delete(legacyCommandPath)
       }
       return ''
@@ -118,7 +118,7 @@ function createWslRunner(
       if (command.includes(`rm -f '${commandPath}'`)) {
         if (
           files.has(bridgePath) &&
-          !files.get(bridgePath)?.includes('# Orca managed WSL CLI PowerShell bridge')
+          !files.get(bridgePath)?.includes('# Webuddy managed WSL CLI PowerShell bridge')
         ) {
           throw new Error('__ORCA_CONFLICT__')
         }
@@ -127,7 +127,7 @@ function createWslRunner(
       }
       if (
         command.includes(legacyCommandPath) &&
-        files.get(legacyCommandPath)?.includes('# Orca managed WSL CLI launcher')
+        files.get(legacyCommandPath)?.includes('# Webuddy managed WSL CLI launcher')
       ) {
         files.delete(legacyCommandPath)
       }
@@ -210,7 +210,7 @@ describe('WslCliInstaller', () => {
     const hostStatus = {
       ...makeHostStatus(),
       pathConfigured: null,
-      detail: 'Orca could not read the Windows user PATH registry value.'
+      detail: 'Webuddy could not read the Windows user PATH registry value.'
     } satisfies CliInstallStatus
     const installer = new WslCliInstaller({
       platform: 'win32',
@@ -490,7 +490,7 @@ describe('WslCliInstaller', () => {
     expect(missingBridge.getBridge()).toBe(_internals.buildWslBridgeScript())
 
     const staleBridge = createWslRunner(PRE_RC4_MANAGED_WSL_LAUNCHER, true, {
-      initialBridge: '# Orca managed WSL CLI PowerShell bridge\nWrite-Output "stale"\n'
+      initialBridge: '# Webuddy managed WSL CLI PowerShell bridge\nWrite-Output "stale"\n'
     })
     const staleBridgeInstaller = new WslCliInstaller({
       platform: 'win32',

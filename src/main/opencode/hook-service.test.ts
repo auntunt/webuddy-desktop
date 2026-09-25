@@ -73,13 +73,14 @@ describe('OpenCode hook plugin source', () => {
 
   it('keeps generated plugin bytes stable across the module split', () => {
     const digest = (source: string): string => createHash('sha256').update(source).digest('hex')
+    // Webuddy digests: identical to upstream's once 'Webuddy' is mapped back to 'Orca'.
 
     expect(digest(getOpenCodePluginSource())).toBe(
-      'd14859a36c88aefe3a45cd232789503296e0a23438b151c773414bad64ab8eaa'
+      'b78c879d4dc6d5742d40c45f5651d537a0c880c0253cd8297d3b2ccbbf2c68a7'
     )
     expect(
       digest(getOpenCodeFamilyPluginSource('/hook/mimo-code', { emitSessionStart: false }))
-    ).toBe('4de14bee0c27ce55f29f70b19aa6ce9967e09b098bba139fb88f0511af7d4fca')
+    ).toBe('3bcc5dcc56813355dc7c9e32304cff6b9889c630079b7572520ab1a43b8365f9')
   })
 
   it('filters child sessions via parentID lookup before forwarding events', () => {

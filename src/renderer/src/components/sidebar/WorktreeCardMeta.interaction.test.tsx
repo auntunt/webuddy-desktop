@@ -302,7 +302,7 @@ describe('WorktreeCardDetailsHover interactions', () => {
     })
 
     const browserButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Open in Orca browser')
+      button.textContent?.includes('Open in Webuddy browser')
     )
 
     act(() => {
@@ -324,7 +324,7 @@ describe('WorktreeCardDetailsHover interactions', () => {
       interactionMocks.onReviewMenuOpenChange?.(true)
     })
     const browserButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Open in Orca browser')
+      button.textContent?.includes('Open in Webuddy browser')
     )
 
     act(() => {
@@ -387,7 +387,7 @@ describe('WorktreeCardDetailsHover interactions', () => {
       interactionMocks.onReviewMenuOpenChange?.(true)
     })
     const browserButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Open in Orca browser')
+      button.textContent?.includes('Open in Webuddy browser')
     )
 
     act(() => {

@@ -346,7 +346,7 @@ it('lists one row per paired Orca server under this computer, and says where SSH
   expect(screen.getByRole('switch', { name: 'Search sessions on office-mini' })).toBeInTheDocument()
   expect(mocks.status).toHaveBeenCalledWith('local')
   expect(screen.getByText('This computer')).toBeInTheDocument()
-  expect(screen.getByText('Orca remote servers')).toBeInTheDocument()
+  expect(screen.getByText('Webuddy remote servers')).toBeInTheDocument()
 })
 
 it('offers only this computer to a paired client, with no server rows', async () => {
@@ -391,7 +391,7 @@ it('leaves a lone computer to its own switch, with no roll-up above it', async (
   expect(screen.getAllByRole('switch')).toHaveLength(1)
   expect(enableAllButton()).not.toBeInTheDocument()
   expect(screen.queryByText('This computer')).not.toBeInTheDocument()
-  expect(screen.queryByText('Orca remote servers')).not.toBeInTheDocument()
+  expect(screen.queryByText('Webuddy remote servers')).not.toBeInTheDocument()
 })
 
 it('offers the button only while a paired server is reachable and off', async () => {

@@ -46,7 +46,7 @@ describe('browser notice formatting', () => {
     ['display-capture', 'permission to capture your screen'],
     ['window-management', 'screen information and multi-screen window placement'],
     ['keyboardLock', 'permission to capture keyboard input'],
-    ['openExternal', 'permission to open a link outside Orca'],
+    ['openExternal', 'permission to open a link outside Webuddy'],
     ['fileSystem', 'access to your files or folders'],
     ['hid', 'access to a connected human interface device'],
     ['usb', 'access to a USB device'],
@@ -201,10 +201,10 @@ describe('browser notice formatting', () => {
       "The certificate for localhost:3443 isn't valid at the current date and time."
     )
     expect(formatLoadFailureDescription(loadError(-202), meta)).toBe(
-      "Orca doesn't trust the authority that issued the certificate for localhost:3443."
+      "Webuddy doesn't trust the authority that issued the certificate for localhost:3443."
     )
     expect(formatLoadFailureDescription(loadError(-208), meta)).toBe(
-      "Orca couldn't verify the certificate for localhost:3443."
+      "Webuddy couldn't verify the certificate for localhost:3443."
     )
     expect(isCertificateLoadError(loadError(-219))).toBe(true)
     expect(isCertificateLoadError(loadError(-215))).toBe(false)

@@ -313,7 +313,7 @@ describe('registerPtyHandlers', () => {
       const env = await spawnAndGetEnv()
       expect(env.TERM).toBe('xterm-256color')
       expect(env.COLORTERM).toBe('truecolor')
-      expect(env.TERM_PROGRAM).toBe('Orca')
+      expect(env.TERM_PROGRAM).toBe('Webuddy')
     })
     it('hints inline-image support to agents via ORCA_IMAGE_PROTOCOL', async () => {
       const env = await spawnAndGetEnv()

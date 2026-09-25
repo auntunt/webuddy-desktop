@@ -73,7 +73,7 @@ describe('OrcaRuntimeService', () => {
       expect(cloned).not.toHaveProperty('executionHostId')
 
       const result = await runtime.setupProjectExistingFolder({
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         hostId: 'runtime:env-1',
         path: clonePath,
         kind: 'git',
@@ -147,7 +147,7 @@ describe('OrcaRuntimeService', () => {
 
     try {
       const result = await runtime.setupProjectClone({
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         hostId: 'runtime:env-2',
         url: 'https://example.com/orca.git',
         destination

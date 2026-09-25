@@ -108,7 +108,7 @@ describe('buildSetupHostOptions', () => {
       })[0]
     ).toMatchObject({
       isAvailable: false,
-      detail: 'Update Orca on this host to set up projects'
+      detail: 'Update Webuddy on this host to set up projects'
     })
   })
 })

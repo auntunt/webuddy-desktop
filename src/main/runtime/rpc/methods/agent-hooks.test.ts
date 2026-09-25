@@ -97,7 +97,7 @@ describe('agent hook RPC methods', () => {
         runtime: runtimeWithSettings(),
         clientKind
       } as RpcContext)
-    ).rejects.toThrow(/only available to the local Orca CLI/)
+    ).rejects.toThrow(/only available to the local Webuddy CLI/)
     expect(installForRuntimeHomeSerializedMock).not.toHaveBeenCalled()
   })
 

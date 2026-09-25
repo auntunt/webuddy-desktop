@@ -1,4 +1,4 @@
-# Orca zsh shell-ready wrapper
+# Webuddy zsh shell-ready wrapper
 __orca_usable_zdotdir() {
   [[ -n "${1:-}" ]] || return 1
   # Orca's own dir, by marker file or by the shape older builds wrote.
@@ -134,7 +134,7 @@ __orca_deferred_init() {
       function omp { __orca_omp "$@"; }
     fi
 
-    # Why: Codex must keep using Orca's runtime CODEX_HOME after rc files.
+    # Why: Codex must keep using Webuddy's runtime CODEX_HOME after rc files.
     [[ -n "${ORCA_CODEX_HOME:-}" ]] && export CODEX_HOME="${ORCA_CODEX_HOME}"
     # Why: a typed alias expands inside the shell, after pane launch prep.
     # Why unalias inside the substitution: an alias named codex makes command -v

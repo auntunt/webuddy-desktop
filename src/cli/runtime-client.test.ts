@@ -439,7 +439,7 @@ describe.skipIf(process.platform === 'win32')('RuntimeClient', () => {
 
     expect(failure).toBeInstanceOf(RuntimeClientError)
     expect((failure as RuntimeClientError).message).toBe(
-      'The Orca runtime closed the connection before responding. Restart Orca and try again.'
+      'The Webuddy runtime closed the connection before responding. Restart Webuddy and try again.'
     )
     expect((failure as RuntimeClientError).data).toBeUndefined()
     expect(request).toMatchObject({ method: 'orchestration.workerShow' })
