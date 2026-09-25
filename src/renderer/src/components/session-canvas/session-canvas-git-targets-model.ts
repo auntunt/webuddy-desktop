@@ -1,5 +1,6 @@
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { splitWorktreeId } from '../../../../shared/worktree/id'
+import type { Worktree } from '../../../../shared/worktree/types'
 
 /**
  * Worktrees whose git status can produce a same-file edge: those hosting a live session,
@@ -30,4 +31,17 @@ export function selectGitStatusTargets(
     }
   }
   return targets.sort()
+}
+
+/** worktreeId → repoId across every known worktree (first repo wins on a duplicate id). */
+export function indexRepoIdByWorktree(
+  worktreesByRepo: Record<string, readonly Pick<Worktree, 'id' | 'repoId'>[]>
+): Record<string, string> {
+  const index: Record<string, string> = {}
+  for (const worktrees of Object.values(worktreesByRepo)) {
+    for (const worktree of worktrees) {
+      index[worktree.id] ??= worktree.repoId
+    }
+  }
+  return index
 }

@@ -9,6 +9,9 @@ import { useAppStore } from '../store'
 import { StructuredAgentSessionStatusBridge } from '../components/native-chat/StructuredAgentSessionStatusBridge'
 
 const DashboardPopoutBridge = lazy(() => import('../components/dashboard/DashboardPopoutBridge'))
+const SessionCanvasPopoutBridge = lazy(
+  () => import('../components/session-canvas/SessionCanvasPopoutBridge')
+)
 
 /**
  * App-level gates that render nothing. Each lives here rather than inside the surface that
@@ -33,6 +36,9 @@ export function AppBackgroundServices(): React.JSX.Element {
           <DashboardPopoutBridge />
         </Suspense>
       ) : null}
+      <Suspense fallback={null}>
+        <SessionCanvasPopoutBridge />
+      </Suspense>
       <AgentHibernationGate />
       <StructuredAgentSessionStatusBridge />
     </>

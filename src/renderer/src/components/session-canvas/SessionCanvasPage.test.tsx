@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => {
   return {
     state,
     fetchChangedFiles: vi.fn(),
-    api: { listExternalSessions: vi.fn(), listMessages: vi.fn() }
+    api: { listExternalSessions: vi.fn(), listMessages: vi.fn(), openPopout: vi.fn() }
   }
 })
 
@@ -74,10 +74,12 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-async function renderPage(): Promise<void> {
+async function renderPage(
+  popout?: Parameters<typeof SessionCanvasPage>[0]['popout']
+): Promise<void> {
   render(
     <TooltipProvider>
-      <SessionCanvasPage />
+      <SessionCanvasPage popout={popout} />
     </TooltipProvider>
   )
   // Let the polls resolve and React Flow measure nodes and handles.
@@ -130,5 +132,20 @@ describe('SessionCanvasPage', () => {
     mocks.api.listExternalSessions.mockResolvedValue({ ok: true, sessions: [] })
     await renderPage()
     expect(screen.getByText(/还没有会话/)).toBeTruthy()
+  })
+
+  it('pops the canvas out into its own window', async () => {
+    mocks.api.openPopout.mockResolvedValue(undefined)
+    await renderPage()
+    fireEvent.click(screen.getByRole('button', { name: '弹出' }))
+    expect(mocks.api.openPopout).toHaveBeenCalledOnce()
+  })
+
+  it('in the pop-out, hides the button and uses the git status the main window sent', async () => {
+    mocks.fetchChangedFiles.mockClear()
+    await renderPage({ changedFilesByWorktree: { [WT_A]: ['src/x.ts'], [WT_B]: ['src/x.ts'] } })
+    expect(screen.queryByRole('button', { name: '弹出' })).toBeNull()
+    expect(mocks.fetchChangedFiles).not.toHaveBeenCalled()
+    expect(screen.getAllByText('1 个相同文件')).toHaveLength(2)
   })
 })

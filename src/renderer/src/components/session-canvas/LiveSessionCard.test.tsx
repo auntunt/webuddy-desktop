@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { act, cleanup, fireEvent, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, type RenderOptions } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { installReactFlowTestDom } from './session-canvas-test-dom'
@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
       settings: noSettings()
     },
     reveal: vi.fn(),
+    revealAgent: vi.fn(async () => undefined),
     closePane: vi.fn(),
     sendPrompt: vi.fn()
   }
@@ -34,6 +35,7 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
 import { useRunningTerminalCloseConfirmStore } from '@/store/running-terminal-close-confirm'
 import { LiveSessionCard } from './LiveSessionCard'
+import { revealInMainWindow, SessionCanvasRevealContext } from './session-canvas-reveal'
 
 let restoreDom: () => void = () => {}
 
@@ -51,7 +53,13 @@ beforeEach(() => {
   mocks.state.settings = null
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { sessionCanvas: { sendPrompt: mocks.sendPrompt, closePane: mocks.closePane } }
+    value: {
+      sessionCanvas: {
+        sendPrompt: mocks.sendPrompt,
+        closePane: mocks.closePane,
+        revealAgent: mocks.revealAgent
+      }
+    }
   })
 })
 
@@ -62,7 +70,10 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-async function renderCard(overrides: Partial<AgentStatusEntry> = {}): Promise<HTMLElement> {
+async function renderCard(
+  overrides: Partial<AgentStatusEntry> = {},
+  wrapper?: RenderOptions['wrapper']
+): Promise<HTMLElement> {
   const entry = makeEntry(PANE_KEY, {
     tabId: 'tab1',
     terminalTitle: 'Fix login bug',
@@ -76,7 +87,8 @@ async function renderCard(overrides: Partial<AgentStatusEntry> = {}): Promise<HT
   })
   const { container } = renderSessionCardNode(
     { live: LiveSessionCard },
-    { kind: 'live', entry, repoLabel: 'app' }
+    { kind: 'live', entry, repoLabel: 'app' },
+    wrapper
   )
   await act(async () => {})
   return container
@@ -115,6 +127,22 @@ describe('LiveSessionCard', () => {
     await renderCard()
     fireEvent.click(screen.getByRole('button', { name: '跳到终端' }))
     expect(mocks.reveal).toHaveBeenCalledWith({
+      repoId: 'repo-1',
+      worktreeId: WT_A,
+      tabId: 'tab1',
+      leafId: LEAF
+    })
+  })
+
+  it('hands reveal to the main window when rendered in the pop-out', async () => {
+    await renderCard({}, ({ children }) => (
+      <SessionCanvasRevealContext.Provider value={revealInMainWindow}>
+        {children}
+      </SessionCanvasRevealContext.Provider>
+    ))
+    fireEvent.click(screen.getByRole('button', { name: '跳到终端' }))
+    expect(mocks.reveal).not.toHaveBeenCalled()
+    expect(mocks.revealAgent).toHaveBeenCalledWith({
       repoId: 'repo-1',
       worktreeId: WT_A,
       tabId: 'tab1',

@@ -19,7 +19,6 @@ import { useAppStore } from '@/store'
 import { toSshExecutionHostId } from '../../../../shared/execution-host'
 import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
 import { DashboardHostBadge } from '../dashboard-popout/DashboardHostBadge'
-import { revealDashboardAgent } from '../dashboard/reveal-dashboard-agent'
 import { ActionStream } from './ActionStream'
 import { resolveSessionApproval } from './approval-fallback-model'
 import {
@@ -30,6 +29,7 @@ import {
 } from './live-session-card-model'
 import { SessionApprovalActions } from './SessionApprovalActions'
 import { sessionCanvasStateLabel } from './session-canvas-labels'
+import { useSessionCanvasReveal } from './session-canvas-reveal'
 import { closeSessionPane } from './session-card-close'
 import type { SessionNodeData } from './session-graph-types'
 import { SessionMessageComposer } from './SessionMessageComposer'
@@ -79,6 +79,7 @@ export function LiveSessionCard({ data }: NodeProps<Node<LiveData, 'live'>>): Re
   const { entry, repoLabel } = data
   const [composerOpen, setComposerOpen] = useState(false)
   const now = useNow(ELAPSED_TICK_MS)
+  const reveal = useSessionCanvasReveal()
   const { worktreeId, connectionId } = entry
   const branchLabel = useAppStore((state) => {
     if (!worktreeId) {
@@ -183,7 +184,7 @@ export function LiveSessionCard({ data }: NodeProps<Node<LiveData, 'live'>>): Re
             label={translate('sessionCanvas.card.reveal', '跳到终端')}
             disabled={!revealArgs}
             onClick={() => {
-              if (revealArgs && !revealDashboardAgent(revealArgs)) {
+              if (revealArgs && !reveal(revealArgs)) {
                 toast.error(translate('sessionCanvas.card.revealFailed', '无法打开这个终端。'))
               }
             }}

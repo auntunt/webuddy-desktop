@@ -12,6 +12,7 @@ import {
   type NodeTypes
 } from '@xyflow/react'
 import '@xyflow/react/dist/base.css'
+import { toast } from 'sonner'
 import './session-canvas.css'
 import { translate } from '@/i18n/i18n'
 import { ConnectMenu } from './ConnectMenu'
@@ -52,10 +53,23 @@ export const SESSION_CANVAS_DEFAULT_FILTERS: SessionCanvasFilters = {
   hideIdleOlderThanMs: 12 * 60 * 60 * 1000
 }
 
-function SessionCanvasSurface(): React.JSX.Element {
+/** Present when this page renders inside the pop-out window. */
+export type SessionCanvasPopoutProps = { changedFilesByWorktree: Record<string, string[]> }
+
+function openSessionCanvasPopout(): void {
+  void window.api.sessionCanvas.openPopout().catch((error: unknown) => {
+    toast.error(error instanceof Error ? error.message : String(error))
+  })
+}
+
+function SessionCanvasSurface({
+  popout
+}: {
+  popout: SessionCanvasPopoutProps | undefined
+}): React.JSX.Element {
   const [filters, setFilters] = useState(SESSION_CANVAS_DEFAULT_FILTERS)
   const { graph, agentOptions, projectOptions, savePosition, resetLayout, refreshMessages } =
-    useSessionCanvasData(filters)
+    useSessionCanvasData(filters, popout?.changedFilesByWorktree)
   const connect = useSessionConnectGesture(graph)
   const connectFor = (mode: 'pass-along' | 'supervise') =>
     connect.request?.mode === mode ? connect.request.connection : null
@@ -108,6 +122,7 @@ function SessionCanvasSurface(): React.JSX.Element {
         projectOptions={projectOptions}
         onResetLayout={onResetLayout}
         onFitView={() => void fitView({ duration: 200 })}
+        onPopout={popout ? undefined : openSessionCanvasPopout}
       />
       <div className="relative min-h-0 flex-1">
         <ReactFlow<SessionFlowNode, SessionFlowEdge>
@@ -155,7 +170,11 @@ function SessionCanvasSurface(): React.JSX.Element {
   )
 }
 
-export default function SessionCanvasPage(): React.JSX.Element {
+export default function SessionCanvasPage({
+  popout
+}: {
+  popout?: SessionCanvasPopoutProps
+}): React.JSX.Element {
   return (
     <main className="session-canvas flex h-full min-h-0 flex-1 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center px-3 pt-3 pb-1">
@@ -164,7 +183,7 @@ export default function SessionCanvasPage(): React.JSX.Element {
         </h1>
       </header>
       <ReactFlowProvider>
-        <SessionCanvasSurface />
+        <SessionCanvasSurface popout={popout} />
       </ReactFlowProvider>
     </main>
   )

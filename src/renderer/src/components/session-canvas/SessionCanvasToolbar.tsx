@@ -1,5 +1,5 @@
 import React from 'react'
-import { ChevronDown, LayoutGrid, Maximize } from 'lucide-react'
+import { ChevronDown, ExternalLink, LayoutGrid, Maximize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -78,6 +78,8 @@ export function SessionCanvasToolbar(props: {
   projectOptions: SessionCanvasProjectOption[]
   onResetLayout: () => void
   onFitView: () => void
+  /** Omitted inside the pop-out itself. */
+  onPopout?: () => void
 }): React.JSX.Element {
   const { filters, onFiltersChange } = props
   const projectLabels = new Map(props.projectOptions.map((option) => [option.id, option.label]))
@@ -181,6 +183,12 @@ export function SessionCanvasToolbar(props: {
             {translate('sessionCanvas.toolbar.fitView', '适应视图')}
           </TooltipContent>
         </Tooltip>
+        {props.onPopout ? (
+          <Button variant="outline" size="sm" onClick={props.onPopout}>
+            <ExternalLink />
+            {translate('sessionCanvas.toolbar.popout', '弹出')}
+          </Button>
+        ) : null}
       </div>
     </div>
   )

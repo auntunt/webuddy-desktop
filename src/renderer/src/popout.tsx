@@ -6,9 +6,10 @@ import './lib/react-devtools-commit-hook-shim'
 import './lib/react-commit-cascade-observer'
 import './assets/main.css'
 
-import { StrictMode, useEffect } from 'react'
+import { StrictMode, Suspense, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DashboardPopoutRoot } from './components/dashboard-popout/DashboardPopoutRoot'
+import { lazyWithRetry } from './lib/lazy-with-retry'
 import { RecoverableRenderErrorBoundary } from './components/error-boundaries/RecoverableRenderErrorBoundary'
 import {
   installRendererCrashDiagnostics,
@@ -101,8 +102,31 @@ function PopoutSettingsSync(): null {
   return null
 }
 
+// Why one entry for both pop-outs: they share this bootstrap; main picks the surface by query.
+const SessionCanvasPopoutRoot = lazyWithRetry(
+  () => import('./components/session-canvas/SessionCanvasPopoutRoot')
+)
+const popoutSurface = new URLSearchParams(window.location.search).get('surface')
+
 function PopoutRoot(): React.JSX.Element {
   useTranslation()
+  if (popoutSurface === 'session-canvas') {
+    return (
+      <RecoverableRenderErrorBoundary
+        boundaryId="session-canvas-popout.root"
+        surface="dashboard-popout"
+        title={translate('sessionCanvas.popout.errorTitle', '会话画布出错了。')}
+        description={translate(
+          'sessionCanvas.popout.errorDescription',
+          '画布没能完成渲染。可以重试，或关闭后重新弹出。'
+        )}
+      >
+        <Suspense fallback={null}>
+          <SessionCanvasPopoutRoot />
+        </Suspense>
+      </RecoverableRenderErrorBoundary>
+    )
+  }
   return (
     <RecoverableRenderErrorBoundary
       boundaryId="dashboard-popout.root"

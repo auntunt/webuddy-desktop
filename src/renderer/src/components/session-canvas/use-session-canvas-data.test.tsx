@@ -228,6 +228,20 @@ describe('useSessionCanvasData positions', () => {
     expect(nodePosition(result, 'live:a')).toEqual({ x: 900, y: 120 })
   })
 
+  it('follows a drag saved by the other canvas window (main or pop-out)', async () => {
+    mocks.state.agentStatusByPaneKey = { a: makeEntry('a') }
+    const { result } = renderHook(() => useSessionCanvasData(FILTERS))
+    await flush()
+    localStorage.setItem(
+      SESSION_CANVAS_POSITIONS_KEY,
+      JSON.stringify({ 'live:a': { x: 640, y: 320 } })
+    )
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: SESSION_CANVAS_POSITIONS_KEY }))
+    })
+    expect(nodePosition(result, 'live:a')).toEqual({ x: 640, y: 320 })
+  })
+
   it('reuses the graph when nothing changed', async () => {
     mocks.state.agentStatusByPaneKey = { a: makeEntry('a') }
     const { result, rerender } = renderHook(() => useSessionCanvasData(FILTERS))

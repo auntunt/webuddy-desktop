@@ -13,6 +13,8 @@ import type {
   SessionCanvasRecordPassAlongArgs,
   SessionCanvasRecordPassAlongResult
 } from '../../shared/session-canvas-types'
+import type { DashboardRevealAgentArgs } from '../../shared/dashboard-snapshot'
+import type { SessionCanvasPopoutSnapshot } from '../../shared/session-canvas-popout'
 
 export type SessionCanvasApi = {
   sendPrompt: (args: SessionCanvasSendPromptArgs) => Promise<SessionCanvasSendPromptResult>
@@ -23,4 +25,14 @@ export type SessionCanvasApi = {
   recordPassAlong: (
     args: SessionCanvasRecordPassAlongArgs
   ) => Promise<SessionCanvasRecordPassAlongResult>
+  // Pop-out window: the main window produces snapshots, the pop-out consumes them.
+  openPopout: () => Promise<void>
+  publishSnapshot: (snapshot: SessionCanvasPopoutSnapshot) => Promise<void>
+  getPopoutOpen: () => Promise<boolean>
+  onPopoutOpenChanged: (callback: (open: boolean) => void) => () => void
+  onSnapshotRequested: (callback: () => void) => () => void
+  onRevealAgent: (callback: (args: DashboardRevealAgentArgs) => void) => () => void
+  requestSnapshot: () => Promise<void>
+  onSnapshot: (callback: (snapshot: SessionCanvasPopoutSnapshot) => void) => () => void
+  revealAgent: (args: DashboardRevealAgentArgs) => Promise<void>
 }

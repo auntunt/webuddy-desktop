@@ -7,7 +7,8 @@ const {
   clipboardReadImage,
   clipboardWriteImage,
   clipboardWriteBuffer,
-  isDashboardPopoutRenderer
+  isDashboardPopoutRenderer,
+  isSessionCanvasPopoutRenderer
 } = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   clipboardReadText: vi.fn(() => 'terminal clipboard text'),
@@ -15,7 +16,8 @@ const {
   clipboardReadImage: vi.fn(),
   clipboardWriteImage: vi.fn(),
   clipboardWriteBuffer: vi.fn(),
-  isDashboardPopoutRenderer: vi.fn(() => true)
+  isDashboardPopoutRenderer: vi.fn(() => true),
+  isSessionCanvasPopoutRenderer: vi.fn(() => false)
 }))
 
 vi.mock('electron', () => ({
@@ -37,6 +39,9 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('./dashboard-popout-window', () => ({ isDashboardPopoutRenderer }))
+vi.mock('./session-canvas-popout-window', () => ({
+  sessionCanvasPopout: { isRenderer: isSessionCanvasPopoutRenderer }
+}))
 vi.mock('./clipboard-remote-file-copy', () => ({
   cleanupExpiredRemoteClipboardFiles: vi.fn(async () => undefined),
   scheduleLegacyRemoteClipboardFileCleanup: vi.fn(),
@@ -62,6 +67,7 @@ describe('dashboard popout clipboard access', () => {
     handlers.clear()
     vi.clearAllMocks()
     isDashboardPopoutRenderer.mockReturnValue(true)
+    isSessionCanvasPopoutRenderer.mockReturnValue(false)
     clipboardReadText.mockReturnValue('terminal clipboard text')
     setTrustedClipboardRendererWebContentsId(17)
     registerClipboardHandlers({} as never)
@@ -136,6 +142,18 @@ describe('dashboard popout clipboard access', () => {
 
     expect(clipboardReadText).not.toHaveBeenCalled()
     expect(clipboardWriteText).not.toHaveBeenCalled()
+  })
+
+  it('lets the session canvas pop-out paste text but nothing beyond text', async () => {
+    isDashboardPopoutRenderer.mockReturnValue(false)
+    isSessionCanvasPopoutRenderer.mockReturnValue(true)
+
+    await expect(handlers.get('clipboard:readText')?.(popoutEvent)).resolves.toBe(
+      'terminal clipboard text'
+    )
+    await expect(handlers.get('clipboard:saveImageAsTempFile')?.(popoutEvent)).rejects.toThrow(
+      'Unauthorized clipboard IPC sender'
+    )
   })
 
   it('applies the text size gate to verified terminal writes', async () => {

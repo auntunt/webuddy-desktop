@@ -50,6 +50,9 @@ vi.mock('../ipc/runtime-environment-transport-routing', () => ({
   callRuntimeEnvironment: callRuntimeEnvironmentMock
 }))
 vi.mock('./dashboard-popout-window', () => ({ isDashboardPopoutRenderer: () => false }))
+vi.mock('./session-canvas-popout-window', () => ({
+  sessionCanvasPopout: { isRenderer: () => false }
+}))
 
 import { registerClipboardHandlers } from './clipboard-ipc-handlers'
 import {

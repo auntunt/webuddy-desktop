@@ -1,6 +1,7 @@
 import type { PreloadApi } from '../../../../preload/api-types'
 
 const DESKTOP_ONLY = { ok: false as const, reason: '会话画布的操作只在桌面应用中可用。' }
+const noop = (): void => {}
 
 /** Browser fallback: canvas actions/data read local terminals and files, so the web client refuses them. */
 export function createWebSessionCanvasApi(): Partial<PreloadApi> {
@@ -11,7 +12,17 @@ export function createWebSessionCanvasApi(): Partial<PreloadApi> {
       supervise: () => Promise.resolve(DESKTOP_ONLY),
       listExternalSessions: () => Promise.resolve(DESKTOP_ONLY),
       listMessages: () => Promise.resolve(DESKTOP_ONLY),
-      recordPassAlong: () => Promise.resolve(DESKTOP_ONLY)
+      recordPassAlong: () => Promise.resolve(DESKTOP_ONLY),
+      // A browser tab has no second window to pop out into.
+      openPopout: () => Promise.resolve(),
+      publishSnapshot: () => Promise.resolve(),
+      getPopoutOpen: () => Promise.resolve(false),
+      onPopoutOpenChanged: () => noop,
+      onSnapshotRequested: () => noop,
+      onRevealAgent: () => noop,
+      requestSnapshot: () => Promise.resolve(),
+      onSnapshot: () => noop,
+      revealAgent: () => Promise.resolve()
     }
   }
 }

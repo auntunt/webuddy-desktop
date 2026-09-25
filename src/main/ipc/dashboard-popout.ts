@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron'
+import { ipcMain } from 'electron'
 import type { Store } from '../persistence'
 import type { KeybindingService } from '../keybindings/keybinding-service'
 import type { DashboardSnapshot } from '../../shared/dashboard-snapshot'
@@ -9,9 +9,8 @@ import {
   isDashboardPopoutRenderer,
   onDashboardPopoutOpenChanged
 } from '../window/dashboard-popout-window'
-import { safelyRevealWindow } from '../window/focus-existing-window'
-import { isBackgroundLaunch } from '../window/foreground-activation-policy'
-import { getTrustedUIRendererWindow, isTrustedUIRenderer, sendToTrustedUIRenderer } from './ui'
+import { isTrustedUIRenderer, sendToTrustedUIRenderer } from './ui'
+import { revealMainWindowWith } from './main-window-reveal-relay'
 import {
   admitDashboardSnapshot,
   isDashboardPaneKey,
@@ -134,19 +133,7 @@ export function registerDashboardPopoutHandlers(
     ) {
       return
     }
-    const mainWindow = getTrustedUIRendererWindow()
-    if (!mainWindow) {
-      return
-    }
-    safelyRevealWindow(mainWindow)
-    mainWindow.webContents.send('ui:revealDashboardAgent', args)
-    if (!isBackgroundLaunch()) {
-      try {
-        app.focus({ steal: true })
-      } catch {
-        // Best-effort; the per-window focus above may still bring it forward.
-      }
-    }
+    revealMainWindowWith('ui:revealDashboardAgent', args)
   })
 
   ipcMain.handle('dashboardPopout:spawnAgent', (event, args: unknown): void => {

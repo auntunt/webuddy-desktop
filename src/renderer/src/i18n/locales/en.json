@@ -18099,7 +18099,8 @@
       "hideIdleHours": "隐藏空闲超过 {{hours}} 小时",
       "resetLayout": "重新排列",
       "fitView": "适应视图",
-      "project": "项目"
+      "project": "项目",
+      "popout": "弹出"
     },
     "edge": {
       "sameFileCount": "{{fileCount}} 个相同文件"
@@ -18172,6 +18173,10 @@
       "submit": "派发",
       "dispatchId": "派发编号：{{id}}",
       "unknownDetail": "{{reason}} · 派发编号：{{id}}"
+    },
+    "popout": {
+      "errorTitle": "会话画布出错了。",
+      "errorDescription": "画布没能完成渲染。可以重试，或关闭后重新弹出。"
     }
   }
 }

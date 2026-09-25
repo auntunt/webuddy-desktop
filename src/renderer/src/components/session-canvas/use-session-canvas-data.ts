@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
-import { selectGitStatusTargets } from './session-canvas-git-targets-model'
+import { indexRepoIdByWorktree, selectGitStatusTargets } from './session-canvas-git-targets-model'
 import {
+  SESSION_CANVAS_POSITIONS_KEY,
   loadSessionCanvasPositions,
   mergeRememberedPositions,
   saveSessionCanvasPositions,
@@ -34,30 +35,41 @@ export type SessionCanvasData = {
   refreshMessages: () => void
 }
 
-/** Store snapshot + polled sources → memoized session graph with stable, persisted layout. */
-export function useSessionCanvasData(filters: SessionCanvasFilters): SessionCanvasData {
+const NO_GIT_TARGETS: string[] = []
+
+/**
+ * Store snapshot + polled sources → memoized session graph with stable, persisted layout.
+ * `mirroredChangedFiles` (pop-out) replaces the local git poll with the main window's result.
+ */
+export function useSessionCanvasData(
+  filters: SessionCanvasFilters,
+  mirroredChangedFiles?: Record<string, string[]>
+): SessionCanvasData {
   // Why: the same store slice the dashboard reads; the store owns the IPC subscription.
   const agentStatusByPaneKey = useAppStore((s) => s.agentStatusByPaneKey)
   const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
   const liveEntries = useMemo(() => Object.values(agentStatusByPaneKey), [agentStatusByPaneKey])
-  const repoIdByWorktree = useMemo(() => {
-    const index: Record<string, string> = {}
-    for (const worktrees of Object.values(worktreesByRepo)) {
-      for (const worktree of worktrees) {
-        index[worktree.id] ??= worktree.repoId
-      }
-    }
-    return index
-  }, [worktreesByRepo])
+  const repoIdByWorktree = useMemo(() => indexRepoIdByWorktree(worktreesByRepo), [worktreesByRepo])
   const gitTargets = useMemo(
     () => selectGitStatusTargets(liveEntries, repoIdByWorktree),
     [liveEntries, repoIdByWorktree]
   )
-  const { externalSessions, messages, changedFilesByWorktree, now, refreshMessages } =
-    useSessionCanvasSources(gitTargets)
+  const sources = useSessionCanvasSources(mirroredChangedFiles ? NO_GIT_TARGETS : gitTargets)
+  const { externalSessions, messages, now, refreshMessages } = sources
+  const changedFilesByWorktree = mirroredChangedFiles ?? sources.changedFilesByWorktree
 
   const [savedPositions, setSavedPositions] = useState(loadSessionCanvasPositions)
   const [layoutGeneration, setLayoutGeneration] = useState(0)
+  // Why: the main window and the pop-out share this storage; follow the other one's drags.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent): void => {
+      if (event.key === SESSION_CANVAS_POSITIONS_KEY || event.key === null) {
+        setSavedPositions(loadSessionCanvasPositions())
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
   // Why: last frame's positions keep auto-placed cards still as others come and go (not state:
   // feeding it back through state would rebuild the graph a second time per change).
   const previousPositionsRef = useRef<Record<string, CanvasPoint>>({})

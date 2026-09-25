@@ -308,6 +308,14 @@ vi.mock('../session-canvas-data', () => ({
   registerSessionCanvasDataHandlers: vi.fn()
 }))
 
+vi.mock('../session-canvas-popout', () => ({
+  registerSessionCanvasPopoutHandlers: vi.fn()
+}))
+
+vi.mock('../../window/session-canvas-popout-window', () => ({
+  sessionCanvasPopout: { isRenderer: () => false }
+}))
+
 vi.mock('../webuddy-collector-handlers', () => ({
   registerWebuddyCollectorHandlers: vi.fn()
 }))
@@ -562,8 +570,12 @@ describe('registerCoreHandlers', () => {
     expect(registerOrcaProfileHandlersMock).toHaveBeenCalledWith(store, { onBeforeRelaunch })
     expect(registerSessionHandlersMock).toHaveBeenCalledWith(store)
     expect(registerUIHandlersMock).toHaveBeenCalledWith(store, {
-      isDashboardPopoutRenderer: isDashboardPopoutRendererMock
+      isDashboardPopoutRenderer: expect.any(Function)
     })
+    const popoutPredicate = registerUIHandlersMock.mock.calls[0]![1].isDashboardPopoutRenderer
+    isDashboardPopoutRendererMock.mockReturnValueOnce(true)
+    expect(popoutPredicate({})).toBe(true)
+    expect(popoutPredicate({})).toBeFalsy()
     expect(registerEmulatorFrameStreamHandlersMock).toHaveBeenCalled()
     expect(registerEmulatorVideoStreamHandlersMock).toHaveBeenCalled()
     expect(registerFilesystemHandlersMock).toHaveBeenCalledWith(store)

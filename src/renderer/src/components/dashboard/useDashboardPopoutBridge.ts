@@ -6,6 +6,7 @@ import type { RepoIcon } from '../../../../shared/repo-icon'
 import { buildDashboardSnapshot, type DashboardSnapshotState } from './build-dashboard-snapshot'
 import { createWorktreeAgentRowsCache } from './worktree-agent-rows-cache'
 import { launchDashboardAgent } from './launch-dashboard-agent'
+import { installPopoutSnapshotPublisher } from '@/lib/popout-snapshot-publisher'
 
 // Why: cap snapshot rebuilds during bursts of agent-status pings. The board is a
 // glanceable surface, so ~4 updates/sec is plenty and keeps the cross-worktree
@@ -154,23 +155,15 @@ export function useDashboardPopoutBridge(enabled: boolean): void {
     if (!enabled) {
       return
     }
-    let open = false
-    let disposed = false
-    let unsubscribeStore: (() => void) | null = null
-    let trailingTimer: ReturnType<typeof setTimeout> | null = null
-    let lastPublishAt = 0
     let lastPublishedRepoIcons: Record<string, RepoIcon | null> | null = null
-
-    // `withIcons` is forced whenever the pop-out could be starting from nothing —
-    // it opened, or it mounted and asked. Throttled republishes omit an unchanged
-    // icon map and the pop-out keeps the one it already has.
     // Why effect-scoped: one cache per popout-bridge lifecycle; unchanged worktrees
     // reuse their row pipeline across the up-to-4Hz republish stream.
     const rowsCache = createWorktreeAgentRowsCache()
-    const publishNow = (withIcons: boolean): void => {
-      lastPublishAt = Date.now()
+    // Throttled (non-full) republishes omit an unchanged icon map and the pop-out
+    // keeps the one it already has.
+    const publish = (withIcons: boolean): void => {
       const state = useAppStore.getState()
-      const snapshot = buildDashboardSnapshot(state, lastPublishAt, {
+      const snapshot = buildDashboardSnapshot(state, Date.now(), {
         rowsCache,
         rowsGeneration: state.agentStatusEpoch
       })
@@ -183,75 +176,13 @@ export function useDashboardPopoutBridge(enabled: boolean): void {
       lastPublishedRepoIcons = icons
       void window.api.dashboard.publishSnapshot(snapshot)
     }
-
-    // Leading + trailing throttle so the first change paints immediately and
-    // bursts collapse into one trailing publish.
-    const publishThrottled = (): void => {
-      if (!open || disposed) {
-        return
-      }
-      const elapsed = Date.now() - lastPublishAt
-      if (elapsed >= PUBLISH_THROTTLE_MS) {
-        if (trailingTimer) {
-          clearTimeout(trailingTimer)
-          trailingTimer = null
-        }
-        publishNow(false)
-        return
-      }
-      if (!trailingTimer) {
-        trailingTimer = setTimeout(() => {
-          trailingTimer = null
-          if (open && !disposed) {
-            publishNow(false)
-          }
-        }, PUBLISH_THROTTLE_MS - elapsed)
-      }
-    }
-
-    const setOpen = (next: boolean): void => {
-      if (next === open || disposed) {
-        return
-      }
-      open = next
-      if (open) {
-        if (!unsubscribeStore) {
-          unsubscribeStore = watchSnapshotInputs(publishThrottled)
-        }
-        publishNow(true)
-      } else {
-        unsubscribeStore?.()
-        unsubscribeStore = null
-        if (trailingTimer) {
-          clearTimeout(trailingTimer)
-          trailingTimer = null
-        }
-      }
-    }
-
-    const offOpenChanged = window.api.dashboard.onPopoutOpenChanged((next) => setOpen(next))
-    // Popout mount asks for a fresh snapshot (its cached one may be stale).
-    const offRequested = window.api.dashboard.onSnapshotRequested(() => {
-      if (open) {
-        publishNow(true)
-      }
+    return installPopoutSnapshotPublisher({
+      throttleMs: PUBLISH_THROTTLE_MS,
+      publish,
+      watch: watchSnapshotInputs,
+      onPopoutOpenChanged: (callback) => window.api.dashboard.onPopoutOpenChanged(callback),
+      onSnapshotRequested: (callback) => window.api.dashboard.onSnapshotRequested(callback),
+      getPopoutOpen: () => window.api.dashboard.getPopoutOpen()
     })
-    // Recover the open state when the main window (re)mounts while a pop-out is
-    // already open — e.g. after a renderer reload.
-    void window.api.dashboard.getPopoutOpen().then((isOpen) => {
-      if (!disposed && isOpen) {
-        setOpen(true)
-      }
-    })
-
-    return () => {
-      disposed = true
-      offOpenChanged?.()
-      offRequested?.()
-      unsubscribeStore?.()
-      if (trailingTimer) {
-        clearTimeout(trailingTimer)
-      }
-    }
   }, [enabled])
 }
