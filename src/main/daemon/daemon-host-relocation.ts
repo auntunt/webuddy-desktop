@@ -35,11 +35,11 @@ export type RelocatedDaemonHost = {
   entryPath: string
 }
 
-const HOST_SUBDIR = 'daemon-host'
+export const HOST_SUBDIR = 'daemon-host'
 const MARKER_NAME = '.materialized.json'
 
 // LOCAL appData (not roaming) so OneDrive/roaming never syncs this ~260MB runtime. Shared with NSIS uninstall (config/nsis/orca-installer-hooks.nsh) — keep in sync.
-const LOCAL_HOST_ROOT_NAME = 'Webuddy'
+export const LOCAL_HOST_ROOT_NAME = 'Webuddy'
 
 /**
  * The host exe keeps the app exe's own file name, so the relocated image is a byte-for-byte,

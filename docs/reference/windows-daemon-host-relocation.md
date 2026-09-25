@@ -2,7 +2,7 @@
 
 On Windows the terminal daemon does not run from the install directory. Before it forks the
 daemon, Orca materializes a trimmed copy of its own runtime under
-`%LOCALAPPDATA%\Orca\daemon-host\<app version>\` and forks the daemon from there
+`%LOCALAPPDATA%\Webuddy\daemon-host\<app version>\` and forks the daemon from there
 (`src/main/daemon/daemon-host-relocation.ts`). This is what keeps live terminals alive across an
 auto-update and across a crash of the main process.
 
