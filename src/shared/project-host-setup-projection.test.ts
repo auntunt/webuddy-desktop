@@ -175,13 +175,13 @@ describe('project host setup projection', () => {
 
     expect(projection.projects).toHaveLength(1)
     expect(projection.projects[0]).toMatchObject({
-      id: 'github:cloudwave/webuddy',
+      id: 'github:stablyai/orca',
       sourceRepoIds: ['local-repo', 'remote-repo'],
       providerIdentity: { provider: 'github', owner: 'StablyAI', repo: 'Orca' }
     })
-    expect(
-      getProjectHostSetupsForProject(projection.setups, 'github:cloudwave/webuddy')
-    ).toHaveLength(2)
+    expect(getProjectHostSetupsForProject(projection.setups, 'github:stablyai/orca')).toHaveLength(
+      2
+    )
   })
 
   it('keeps same-named github.com and GHES repositories in separate projects', () => {
@@ -279,13 +279,13 @@ describe('project host setup projection', () => {
 
     expect(projection.projects).toHaveLength(1)
     expect(projection.projects[0]).toMatchObject({
-      id: 'github:cloudwave/webuddy',
+      id: 'github:stablyai/orca',
       sourceRepoIds: ['local-repo', 'remote-repo'],
       providerIdentity: { provider: 'github', owner: 'stablyai', repo: 'orca' }
     })
-    expect(
-      getProjectHostSetupsForProject(projection.setups, 'github:cloudwave/webuddy')
-    ).toHaveLength(2)
+    expect(getProjectHostSetupsForProject(projection.setups, 'github:stablyai/orca')).toHaveLength(
+      2
+    )
   })
 
   it('uses git remote identity as a provider identity fallback', () => {
@@ -315,7 +315,7 @@ describe('project host setup projection', () => {
 
     expect(projection.projects).toHaveLength(1)
     expect(projection.projects[0]).toMatchObject({
-      id: 'github:cloudwave/webuddy',
+      id: 'github:stablyai/orca',
       displayName: 'orca',
       sourceRepoIds: ['canonical-local-repo', 'old-branch-checkout'],
       providerIdentity: { provider: 'github', owner: 'stablyai', repo: 'orca' }
@@ -532,7 +532,7 @@ describe('project host setup projection', () => {
     const projection = projectHostSetupProjectionFromRepos([targetRepo])
 
     expect(getProjectHostSetupWorktreeMeta(projection.setups, targetRepo)).toEqual({
-      projectId: 'github:cloudwave/webuddy',
+      projectId: 'github:stablyai/orca',
       hostId: 'ssh:openclaw%202',
       projectHostSetupId: 'remote-repo'
     })

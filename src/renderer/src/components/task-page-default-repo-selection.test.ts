@@ -294,7 +294,7 @@ describe('getTaskProjectPickerGroups', () => {
 
     expect(groups).toHaveLength(2)
     expect(groups[0]).toMatchObject({
-      projectKey: 'github:cloudwave/webuddy',
+      projectKey: 'github:stablyai/orca',
       repo: { id: 'local-orca' }
     })
     expect(groups[0]?.sources.map((source) => source.id)).toEqual(['local-orca', 'ssh-orca'])

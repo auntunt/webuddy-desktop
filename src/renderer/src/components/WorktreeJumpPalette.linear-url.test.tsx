@@ -475,7 +475,7 @@ describe('WorktreeJumpPalette Linear URL intent', () => {
       'linear-workspace-1',
       expect.objectContaining({
         sourceContext: expect.objectContaining({
-          projectId: 'github:cloudwave/webuddy',
+          projectId: 'github:stablyai/orca',
           repoId: 'local-sibling'
         })
       })

@@ -46,7 +46,7 @@ describe('buildRows with pinned worktrees', () => {
     )
 
     expect(rows).toMatchObject([
-      { type: 'header', key: 'project:github:cloudwave/webuddy', label: 'Orca', count: 2 },
+      { type: 'header', key: 'project:github:stablyai/orca', label: 'Orca', count: 2 },
       { type: 'item', worktree: { id: worktree.id }, hostContextLabel: LOCAL_HOST_LABEL },
       { type: 'item', worktree: { id: remoteWorktree.id }, hostContextLabel: 'gpu-vm' }
     ])
@@ -99,10 +99,10 @@ describe('buildRows with pinned worktrees', () => {
     }
 
     expect(buildHeaders([], [])).toMatchObject([
-      { key: 'project:github:cloudwave/webuddy', label: 'Orca' }
+      { key: 'project:github:stablyai/orca', label: 'Orca' }
     ])
     expect(buildHeaders([otherWorktree], [otherRepo])).toMatchObject([
-      { key: 'project:github:cloudwave/webuddy', label: 'Orca' },
+      { key: 'project:github:stablyai/orca', label: 'Orca' },
       { key: 'repo:repo-other', label: 'design-assets' }
     ])
   })
@@ -364,11 +364,11 @@ describe('buildRows with pinned worktrees', () => {
 
     const headers = rows.filter((row) => row.type === 'header')
     expect(headers.map((row) => row.key)).toEqual([
-      'project:github:cloudwave/webuddy',
+      'project:github:stablyai/orca',
       'project:github:stablyai/analytics'
     ])
     expect(headers[0]).toMatchObject({
-      key: 'project:github:cloudwave/webuddy',
+      key: 'project:github:stablyai/orca',
       repo: { id: repo.id, badgeColor: repo.badgeColor }
     })
   })
@@ -424,11 +424,11 @@ describe('buildRows with pinned worktrees', () => {
     expect(headers).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          key: 'project:github:cloudwave/webuddy::setup:repo-1',
+          key: 'project:github:stablyai/orca::setup:repo-1',
           label: 'orca'
         }),
         expect.objectContaining({
-          key: 'project:github:cloudwave/webuddy::setup:repo-2',
+          key: 'project:github:stablyai/orca::setup:repo-2',
           label: 'orca-2'
         })
       ])
@@ -490,9 +490,9 @@ describe('buildRows with pinned worktrees', () => {
 
     const headers = rows.filter((row) => row.type === 'header')
     expect(headers.map((row) => row.key)).toEqual([
-      'project:github:cloudwave/webuddy::setup:repo-1',
-      'project:github:cloudwave/webuddy::setup:repo-local-b',
-      'project:github:cloudwave/webuddy'
+      'project:github:stablyai/orca::setup:repo-1',
+      'project:github:stablyai/orca::setup:repo-local-b',
+      'project:github:stablyai/orca'
     ])
   })
 
@@ -556,7 +556,7 @@ describe('buildRows with pinned worktrees', () => {
         undefined,
         grouping
       )
-    ]).toEqual(['project:github:cloudwave/webuddy', 'project:github:cloudwave/webuddy'])
+    ]).toEqual(['project:github:stablyai/orca', 'project:github:stablyai/orca'])
   })
 
   it('keeps Git hosts grouped when folder setups share the project identity', () => {
@@ -626,7 +626,7 @@ describe('buildRows with pinned worktrees', () => {
         grouping
       )
     )
-    expect(new Set(groupKeys)).toEqual(new Set(['project:github:cloudwave/webuddy']))
+    expect(new Set(groupKeys)).toEqual(new Set(['project:github:stablyai/orca']))
   })
 
   it('keeps a provisioned runtime copy under the project header alongside a same-host checkout', () => {
@@ -687,7 +687,7 @@ describe('buildRows with pinned worktrees', () => {
     const headers = rows.filter((row) => row.type === 'header')
     expect(headers).toHaveLength(1)
     expect(headers[0]).toMatchObject({
-      key: 'project:github:cloudwave/webuddy',
+      key: 'project:github:stablyai/orca',
       label: 'Orca',
       count: 2
     })
@@ -773,17 +773,17 @@ describe('buildRows with pinned worktrees', () => {
 
     const headers = rows.filter((row) => row.type === 'header')
     expect(headers.map((row) => row.key).sort()).toEqual([
-      'project:github:cloudwave/webuddy',
-      'project:github:cloudwave/webuddy::setup:repo-1',
-      'project:github:cloudwave/webuddy::setup:repo-local-b'
+      'project:github:stablyai/orca',
+      'project:github:stablyai/orca::setup:repo-1',
+      'project:github:stablyai/orca::setup:repo-local-b'
     ])
     // The provisioned copy nests under the plain project key with only its own
     // worktree; it never gets a path-scoped `::setup:` header like the real
     // checkouts do, and that header keeps the project's own display name.
     expect(
-      headers.some((row) => row.key === 'project:github:cloudwave/webuddy::setup:repo-runtime-b')
+      headers.some((row) => row.key === 'project:github:stablyai/orca::setup:repo-runtime-b')
     ).toBe(false)
-    expect(headers.find((row) => row.key === 'project:github:cloudwave/webuddy')).toMatchObject({
+    expect(headers.find((row) => row.key === 'project:github:stablyai/orca')).toMatchObject({
       label: 'Orca',
       count: 1
     })

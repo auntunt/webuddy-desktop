@@ -463,7 +463,7 @@ describe('store selectors', () => {
     ]
     const projects = [
       {
-        id: 'github:cloudwave/webuddy',
+        id: 'github:stablyai/orca',
         displayName: 'orca',
         badgeColor: '#737373',
         sourceRepoIds: ['local-orca'],
@@ -482,7 +482,7 @@ describe('store selectors', () => {
     const projectHostSetups = [
       {
         id: 'local-setup',
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         hostId: 'local' as const,
         repoId: 'local-orca',
         path: '/Users/alice/stably/orca',
@@ -512,11 +512,11 @@ describe('store selectors', () => {
       projectHostSetups
     })
 
-    expect(projection.projects.map((project) => project.id)).toEqual(['github:cloudwave/webuddy'])
+    expect(projection.projects.map((project) => project.id)).toEqual(['github:stablyai/orca'])
     expect(projection.setups).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'local-setup', projectId: 'github:cloudwave/webuddy' }),
-        expect.objectContaining({ id: 'vm-setup', projectId: 'github:cloudwave/webuddy' })
+        expect.objectContaining({ id: 'local-setup', projectId: 'github:stablyai/orca' }),
+        expect.objectContaining({ id: 'vm-setup', projectId: 'github:stablyai/orca' })
       ])
     )
   })
@@ -539,14 +539,14 @@ describe('store selectors', () => {
 
     expect(projection.projects).toEqual([
       expect.objectContaining({
-        id: 'github:cloudwave/webuddy',
+        id: 'github:stablyai/orca',
         sourceRepoIds: ['repo-1']
       })
     ])
     expect(projection.setups).toEqual([
       expect.objectContaining({
         id: 'repo-1',
-        projectId: 'github:cloudwave/webuddy',
+        projectId: 'github:stablyai/orca',
         repoId: 'repo-1',
         hostId: 'local',
         path: '/Users/alice/orca'

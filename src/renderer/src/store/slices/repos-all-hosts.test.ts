@@ -195,7 +195,7 @@ function configureSharedProjectCompatibilityMocks(
   sharedProjectId: string
   sharedRemoteProject: Project
 } {
-  const sharedProjectId = 'github:cloudwave/webuddy'
+  const sharedProjectId = 'github:stablyai/orca'
   const localRepoForSharedProject: Repo =
     options.localRepoHasProviderIdentity === false
       ? localRepo
@@ -681,7 +681,7 @@ describe('fetchReposForAllHosts', () => {
         .getState()
         .projects.map((project) => project.id)
         .sort()
-    ).toEqual(['github:cloudwave/webuddy', 'repo:remote-repo'])
+    ).toEqual(['github:stablyai/orca', 'repo:remote-repo'])
     expect(store.getState().projectHostSetups).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

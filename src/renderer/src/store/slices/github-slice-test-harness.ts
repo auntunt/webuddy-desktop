@@ -212,7 +212,7 @@ export function githubSourceContext(
   return {
     kind: 'task-source',
     provider: 'github',
-    projectId: 'github:cloudwave/webuddy',
+    projectId: 'github:stablyai/orca',
     hostId,
     projectHostSetupId: 'setup-1',
     repoId,

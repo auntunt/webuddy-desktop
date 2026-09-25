@@ -252,7 +252,7 @@ describe('runBackgroundWorktreeCreation', () => {
     expect(prepareEphemeralVmWorkspaceTargetMock).toHaveBeenCalledWith({
       repoId: 'repo-1',
       recipeId: 'cloud-sandbox',
-      projectId: 'github:cloudwave/webuddy',
+      projectId: 'github:stablyai/orca',
       workspaceName: 'feature',
       provisionId: 'creation-1',
       setupExistingFolder: store.setupProjectExistingFolder
@@ -299,7 +299,7 @@ describe('runBackgroundWorktreeCreation', () => {
         ephemeralVmRecipe: {
           sourceRepoId: 'repo-1',
           recipeId: 'cloud-sandbox',
-          projectId: 'github:cloudwave/webuddy'
+          projectId: 'github:stablyai/orca'
         },
         baseBranch: 'abc123',
         compareBaseRef: 'refs/remotes/origin/main',
