@@ -141,6 +141,15 @@ describe('SessionCanvasPage', () => {
     expect(mocks.api.openPopout).toHaveBeenCalledOnce()
   })
 
+  it('keeps the minimap clear of the bottom-right floating button and keeps attribution', async () => {
+    await renderPage()
+    const minimap = document.querySelector('.react-flow__minimap')
+    expect(minimap?.classList.contains('left')).toBe(true)
+    const attribution = document.querySelector<HTMLAnchorElement>('.react-flow__attribution a')
+    // Why target=_blank: the window's navigation policy routes new windows to the OS browser.
+    expect(attribution?.target).toBe('_blank')
+  })
+
   it('hides the pop-out button in the web client', async () => {
     Object.assign(window, { __ORCA_WEB_CLIENT__: true })
     try {

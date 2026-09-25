@@ -144,7 +144,10 @@ function SessionCanvasSurface({
           deleteKeyCode={null}
         >
           <Background variant={BackgroundVariant.Dots} gap={24} />
-          <MiniMap pannable zoomable />
+          {/* Bottom-left: the app's floating workspace button owns the bottom-right corner;
+              the MIT attribution stays there and opens in the OS browser via the window's
+              navigation policy. */}
+          <MiniMap position="bottom-left" pannable zoomable />
         </ReactFlow>
         {graph.nodes.length === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
