@@ -102,24 +102,43 @@ function crossWorktreeEdges(
   return edges
 }
 
+/** Hosts whose default filesystems fold case, so `src/App.ts` and `src/app.ts` are one file. */
+function foldsPathCase(platform: string): boolean {
+  return platform === 'win32' || platform === 'darwin'
+}
+
+function currentClientPlatform(): string {
+  const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
+  return agent.includes('Mac') ? 'darwin' : agent.includes('Windows') ? 'win32' : 'linux'
+}
+
 // Why: sessions sharing one worktree share its whole git status, so only the files each
 // session itself edited (per its action feed) say whether they collide.
-function sameWorktreeEdges(worktree: WorktreeMembers): SessionGraphEdge[] {
+function sameWorktreeEdges(worktree: WorktreeMembers, foldCase: boolean): SessionGraphEdge[] {
   if (worktree.sessions.length < 2) {
     return []
   }
   const root = splitWorktreeIdForFilesystem(worktree.worktreeId)?.worktreePath ?? null
+  // Comparison key → first spelling seen, so edges show the path as the agent wrote it.
   const touched = worktree.sessions.map((session) => {
     const history = session.data.kind === 'live' ? session.data.entry.actionHistory : undefined
-    return { id: session.id, files: collectTouchedFiles(history, root) }
+    const files = new Map<string, string>()
+    for (const file of collectTouchedFiles(history, root)) {
+      const key = foldCase ? file.toLowerCase() : file
+      if (!files.has(key)) {
+        files.set(key, file)
+      }
+    }
+    return { id: session.id, files }
   })
   const edges: SessionGraphEdge[] = []
   for (let i = 0; i < touched.length; i++) {
-    const left = new Set(touched[i].files)
+    const left = touched[i].files
     for (let j = i + 1; j < touched.length; j++) {
       const shared: string[] = []
-      for (const file of touched[j].files) {
-        if (left.has(file) && shared.push(file) === SAME_FILE_EDGE_MAX_FILES) {
+      for (const key of touched[j].files.keys()) {
+        const display = left.get(key)
+        if (display !== undefined && shared.push(display) === SAME_FILE_EDGE_MAX_FILES) {
           break
         }
       }
@@ -133,8 +152,10 @@ function sameWorktreeEdges(worktree: WorktreeMembers): SessionGraphEdge[] {
 
 export function buildSameFileEdges(
   sessions: CanvasSession[],
-  changedFilesByWorktree: Record<string, string[]>
+  changedFilesByWorktree: Record<string, string[]>,
+  platform: string = currentClientPlatform()
 ): SessionGraphEdge[] {
+  const foldCase = foldsPathCase(platform)
   const worktreesByRepo = new Map<string, Map<string, WorktreeMembers>>()
   for (const session of sessions) {
     const worktreeId = session.data.kind === 'live' ? session.data.entry.worktreeId : undefined
@@ -152,7 +173,7 @@ export function buildSameFileEdges(
     const list = [...worktrees.values()]
     edges.push(...crossWorktreeEdges(list, changedFilesByWorktree))
     for (const worktree of list) {
-      edges.push(...sameWorktreeEdges(worktree))
+      edges.push(...sameWorktreeEdges(worktree, foldCase))
     }
   }
   return edges

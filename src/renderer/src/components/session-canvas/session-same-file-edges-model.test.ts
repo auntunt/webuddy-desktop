@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentActionHistoryEntry } from '../../../../shared/agent-status-types'
 import { buildSessionGraph } from './session-graph-model'
+import { resolveCanvasMembership } from './session-graph-membership-model'
+import { buildSameFileEdges } from './session-same-file-edges-model'
 import { NOW, WT_A, WT_B, makeEntry, makeInputs } from './session-graph-test-fixtures'
 
 const edit = (path: string): AgentActionHistoryEntry => ({
@@ -149,5 +151,26 @@ describe('same-file edges across worktrees', () => {
       makeInputs({ liveEntries, changedFilesByWorktree: changed, repoIdByWorktree })
     )
     expect(edges).toHaveLength((20 * 19) / 2)
+  })
+})
+
+describe('same-file edges and path case', () => {
+  const inputs = makeInputs({
+    liveEntries: [
+      makeEntry('a', { actionHistory: [edit('src/App.ts')] }),
+      makeEntry('b', { actionHistory: [edit('src/app.ts')] })
+    ]
+  })
+  const { sessions } = resolveCanvasMembership(inputs)
+
+  it('folds case on Windows and macOS hosts, keeping the first spelling for display', () => {
+    for (const platform of ['win32', 'darwin'] as const) {
+      const edges = buildSameFileEdges(sessions, {}, platform)
+      expect(edges.map((edge) => edge.files)).toEqual([['src/App.ts']])
+    }
+  })
+
+  it('stays case-sensitive on Linux', () => {
+    expect(buildSameFileEdges(sessions, {}, 'linux')).toEqual([])
   })
 })
