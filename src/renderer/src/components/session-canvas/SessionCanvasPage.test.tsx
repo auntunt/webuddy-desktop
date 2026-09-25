@@ -115,6 +115,16 @@ describe('SessionCanvasPage', () => {
     expect(screen.getAllByText('1 个相同文件')).toHaveLength(2)
   })
 
+  it('offers connection handles on live cards only', async () => {
+    await renderPage()
+    for (const card of screen.getAllByTestId('session-live-card')) {
+      const node = card.closest('.react-flow__node')
+      expect(node?.querySelectorAll('.react-flow__handle')).toHaveLength(2)
+    }
+    const external = screen.getByTestId('session-external-card').closest('.react-flow__node')
+    expect(external?.querySelectorAll('.react-flow__handle')).toHaveLength(0)
+  })
+
   it('shows the empty state without sessions', async () => {
     mocks.state.agentStatusByPaneKey = {}
     mocks.api.listExternalSessions.mockResolvedValue({ ok: true, sessions: [] })

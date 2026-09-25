@@ -14,11 +14,14 @@ import {
 import '@xyflow/react/dist/base.css'
 import './session-canvas.css'
 import { translate } from '@/i18n/i18n'
+import { ConnectMenu } from './ConnectMenu'
 import { ExternalSessionCard } from './ExternalSessionCard'
 import { LiveSessionCard } from './LiveSessionCard'
+import { PassAlongDialog } from './PassAlongDialog'
 import { SessionCanvasToolbar } from './SessionCanvasToolbar'
 import { SessionEdge } from './SessionEdge'
 import { SessionGroupNode } from './SessionGroupNode'
+import { SuperviseDialog } from './SuperviseDialog'
 import {
   EMPTY_SESSION_FLOW_LOCAL_STATE,
   applySessionFlowChanges,
@@ -31,6 +34,7 @@ import {
 } from './session-canvas-flow-model'
 import type { SessionCanvasFilters } from './session-graph-types'
 import { useSessionCanvasData } from './use-session-canvas-data'
+import { useSessionConnectGesture } from './use-session-connect-gesture'
 
 const NODE_TYPES: NodeTypes = {
   live: LiveSessionCard,
@@ -50,8 +54,16 @@ export const SESSION_CANVAS_DEFAULT_FILTERS: SessionCanvasFilters = {
 
 function SessionCanvasSurface(): React.JSX.Element {
   const [filters, setFilters] = useState(SESSION_CANVAS_DEFAULT_FILTERS)
-  const { graph, agentOptions, projectOptions, savePosition, resetLayout } =
+  const { graph, agentOptions, projectOptions, savePosition, resetLayout, refreshMessages } =
     useSessionCanvasData(filters)
+  const connect = useSessionConnectGesture(graph)
+  const connectFor = (mode: 'pass-along' | 'supervise') =>
+    connect.request?.mode === mode ? connect.request.connection : null
+  const onDialogOpenChange = (open: boolean): void => {
+    if (!open) {
+      connect.close()
+    }
+  }
   const [local, setLocal] = useState(EMPTY_SESSION_FLOW_LOCAL_STATE)
   const nodes = useMemo(() => toFlowNodes(graph, local), [graph, local])
   const edges = useMemo(() => toFlowEdges(graph), [graph])
@@ -105,6 +117,9 @@ function SessionCanvasSurface(): React.JSX.Element {
           edgeTypes={EDGE_TYPES}
           onNodesChange={onNodesChange}
           onNodeDragStop={onNodeDragStop}
+          isValidConnection={connect.isValidConnection}
+          onConnect={connect.onConnect}
+          onConnectEnd={connect.onConnectEnd}
           onlyRenderVisibleElements
           fitView
           minZoom={0.1}
@@ -125,6 +140,17 @@ function SessionCanvasSurface(): React.JSX.Element {
           </div>
         ) : null}
       </div>
+      <ConnectMenu
+        point={connect.request?.mode === 'menu' ? connect.request.point : null}
+        onPick={connect.pick}
+        onClose={connect.closeMenu}
+      />
+      <PassAlongDialog
+        connection={connectFor('pass-along')}
+        onOpenChange={onDialogOpenChange}
+        onSent={refreshMessages}
+      />
+      <SuperviseDialog connection={connectFor('supervise')} onOpenChange={onDialogOpenChange} />
     </>
   )
 }

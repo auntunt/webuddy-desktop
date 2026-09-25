@@ -18142,6 +18142,36 @@
       "label": "给这个会话发消息",
       "placeholder": "发消息…",
       "send": "发送"
+    },
+    "connect": {
+      "passAlong": "传话",
+      "passAlongHint": "把 A 的最新结果发给 B",
+      "supervise": "监督",
+      "superviseHint": "让 A 把一个任务派给 B 并跟进"
+    },
+    "passAlong": {
+      "logFailed": "已送达，但没能记下这次传话",
+      "sent": "已传话给「{{title}}」",
+      "title": "传话",
+      "description": "把「{{from}}」的最新结果发给「{{to}}」。",
+      "noteLabel": "附言（可选）",
+      "preview": "将发送的内容",
+      "submit": "传话"
+    },
+    "dialog": {
+      "cancel": "取消"
+    },
+    "supervise": {
+      "sent": "已把任务派给「{{title}}」",
+      "unknown": "派发结果未知：任务可能已送达，先看看 B 再重试",
+      "title": "监督",
+      "description": "「{{from}}」把任务派给「{{to}}」，由「{{to}}」作为工人执行。",
+      "taskLabel": "任务说明",
+      "pendingHint": "正在让 B 接手任务，最长约一分钟。",
+      "pending": "派发中…",
+      "submit": "派发",
+      "dispatchId": "派发编号：{{id}}",
+      "unknownDetail": "{{reason}} · 派发编号：{{id}}"
     }
   }
 }
