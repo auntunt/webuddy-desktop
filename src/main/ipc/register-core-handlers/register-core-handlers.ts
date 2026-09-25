@@ -58,6 +58,7 @@ import { registerTerminalRenderDesyncEvidenceHandler } from '../terminal-render-
 import { registerOrcaProfileHandlers } from '../orca-profiles'
 import { registerWebuddyCollectorHandlers } from '../webuddy-collector-handlers'
 import { registerSessionCanvasActionHandlers } from '../session-canvas-actions'
+import { registerSessionCanvasDataHandlers } from '../session-canvas-data'
 import { registerCodexAccountHandlers } from '../codex-accounts'
 import { registerAgentHookHandlers } from '../agent-hooks'
 import { registerCodexConfigSyncHandlers } from '../codex-config-sync'
@@ -196,6 +197,7 @@ export function registerCoreHandlers(
   registerTelemetryHandlers(store)
   registerWebuddyCollectorHandlers()
   registerSessionCanvasActionHandlers(runtime)
+  registerSessionCanvasDataHandlers(runtime)
   registerOrcaProfileHandlers(store, {
     onBeforeRelaunch: lifecycleOptions.onBeforeRelaunch,
     onAuthMutation: lifecycleOptions.onOrcaProfileAuthMutation,
