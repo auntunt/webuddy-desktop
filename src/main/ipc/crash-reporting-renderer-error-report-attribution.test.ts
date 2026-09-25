@@ -108,4 +108,16 @@ describe('renderer error report attribution', () => {
     expect(firstResult).toMatchObject({ ok: true, deduped: false })
     expect(secondResult).toMatchObject({ ok: true, deduped: false })
   })
+
+  it('accepts the session canvas pop-out as its own boundary surface', async () => {
+    const { store, record } = makeStore()
+
+    const result = await recordRendererErrorReport(
+      store,
+      baseArgs({ boundaryId: 'session-canvas-popout.root', surface: 'session-canvas-popout' })
+    )
+
+    expect(result).toMatchObject({ ok: true })
+    expect(record).toHaveBeenCalledOnce()
+  })
 })

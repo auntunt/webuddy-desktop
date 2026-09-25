@@ -28,9 +28,13 @@ import { setReactCommitCascadeRendererSurface } from './lib/react-commit-cascade
 // so it must run the same renderer bootstrap as main.tsx (crash diagnostics,
 // theme, i18n, error boundary) rather than inheriting anything from the main
 // window. It shares the preload/window.api but not the DOM or JS context.
+// Why one entry for both pop-outs: they share this bootstrap; main picks the surface by query.
+const popoutSurface = new URLSearchParams(window.location.search).get('surface')
+const crashSurface =
+  popoutSurface === 'session-canvas' ? 'session-canvas-popout' : 'dashboard-popout'
 recordRendererCrashBreadcrumb('popout_bootstrap_started', { dev: import.meta.env.DEV })
-installRendererCrashDiagnostics('dashboard-popout')
-setReactCommitCascadeRendererSurface('dashboard-popout')
+installRendererCrashDiagnostics(crashSurface)
+setReactCommitCascadeRendererSurface(crashSurface)
 
 function applyPopoutAppearance(settings: GlobalSettings | null): void {
   applyDocumentTheme(settings?.theme ?? 'system', { disableTransitions: false })
@@ -102,11 +106,9 @@ function PopoutSettingsSync(): null {
   return null
 }
 
-// Why one entry for both pop-outs: they share this bootstrap; main picks the surface by query.
 const SessionCanvasPopoutRoot = lazyWithRetry(
   () => import('./components/session-canvas/SessionCanvasPopoutRoot')
 )
-const popoutSurface = new URLSearchParams(window.location.search).get('surface')
 
 function PopoutRoot(): React.JSX.Element {
   useTranslation()
@@ -114,7 +116,7 @@ function PopoutRoot(): React.JSX.Element {
     return (
       <RecoverableRenderErrorBoundary
         boundaryId="session-canvas-popout.root"
-        surface="dashboard-popout"
+        surface="session-canvas-popout"
         title={translate('sessionCanvas.popout.errorTitle', '会话画布出错了。')}
         description={translate(
           'sessionCanvas.popout.errorDescription',

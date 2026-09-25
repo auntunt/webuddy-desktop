@@ -78,6 +78,7 @@ export type ReactErrorBoundarySurface =
   | 'overlay'
   | 'rich-markdown-editor'
   | 'dashboard-popout'
+  | 'session-canvas-popout'
 
 export type ReactErrorBoundaryReportArgs = {
   boundaryId: string
