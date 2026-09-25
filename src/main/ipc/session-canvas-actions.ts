@@ -43,8 +43,11 @@ function readRecord(value: unknown): Record<string, unknown> {
 }
 
 export function parseSendPromptArgs(value: unknown): SessionCanvasSendPromptArgs | null {
-  const { paneKey, text } = readRecord(value)
-  return typeof paneKey === 'string' && typeof text === 'string' ? { paneKey, text } : null
+  const { paneKey, text, keys } = readRecord(value)
+  if (typeof paneKey !== 'string' || typeof text !== 'string') {
+    return null
+  }
+  return keys === true ? { paneKey, text, keys } : { paneKey, text }
 }
 
 export function parseSuperviseArgs(value: unknown): SessionCanvasSuperviseArgs | null {
@@ -130,22 +133,24 @@ export function createSessionCanvasActions(deps: SessionCanvasActionDeps): {
   }
 
   return {
-    async sendPrompt({ paneKey, text }) {
-      if (!text.trim()) {
+    async sendPrompt({ paneKey, text, keys }) {
+      if (keys ? text.length === 0 : !text.trim()) {
         return fail('消息不能为空。')
       }
       const terminal = deps.resolveTerminalHandle(paneKey)
       if (!terminal) {
         return unknownPane(paneKey)
       }
+      const client = { id: 'session-canvas', type: 'desktop' }
       // Why: terminal.send owns the settled-prompt vs plain-send choice and the lock/lease guards.
-      const response = await deps.callRuntime('terminal.send', {
-        terminal,
-        text,
-        enter: true,
-        agentPrompt: true,
-        client: { id: 'session-canvas', type: 'desktop' }
-      })
+      // Approval choices are complete key sequences; Enter or paste wrapping would change them
+      // (same as mobile's permission send).
+      const response = await deps.callRuntime(
+        'terminal.send',
+        keys
+          ? { terminal, text, client }
+          : { terminal, text, enter: true, agentPrompt: true, client }
+      )
       if (!response.ok) {
         return fail(response.error.message)
       }

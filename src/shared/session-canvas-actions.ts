@@ -1,4 +1,9 @@
-export type SessionCanvasSendPromptArgs = { paneKey: string; text: string }
+export type SessionCanvasSendPromptArgs = {
+  paneKey: string
+  text: string
+  /** Write `text` as raw keystrokes (approval digit, ESC): no paste wrapping, no Enter. */
+  keys?: true
+}
 
 export type SessionCanvasSendPromptResult = { ok: true } | { ok: false; reason: string }
 

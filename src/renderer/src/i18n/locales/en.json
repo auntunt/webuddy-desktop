@@ -18105,21 +18105,41 @@
       "sameFileCount": "{{fileCount}} 个相同文件"
     },
     "card": {
-      "externalReadOnly": "外部 · 只读"
+      "externalReadOnly": "外部 · 只读",
+      "noActions": "暂无动作",
+      "actions": "最近动作",
+      "you": "你",
+      "noPreview": "暂无预览",
+      "message": "发消息",
+      "reveal": "跳到终端",
+      "revealFailed": "无法打开这个终端。",
+      "close": "关闭终端"
     },
     "state": {
       "working": "工作中",
       "waiting": "等你决定",
       "blocked": "受阻",
       "done": "已完成",
-      "external": "外部会话"
+      "external": "外部会话",
+      "unverifiable": "无法确认"
     },
     "group": {
       "other": "其他"
     },
     "navLabel": "会话画布",
+    "approval": {
+      "title": "请求权限",
+      "allow": "允许",
+      "deny": "拒绝",
+      "allowAlways": "总是允许"
+    },
     "error": {
       "loadFailed": "会话画布数据加载失败：{{reason}}"
+    },
+    "composer": {
+      "label": "给这个会话发消息",
+      "placeholder": "发消息…",
+      "send": "发送"
     }
   }
 }

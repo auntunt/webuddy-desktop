@@ -53,6 +53,34 @@ describe('sessionCanvas sendPrompt', () => {
     })
   })
 
+  it('writes approval keys raw, without paste wrapping or Enter', async () => {
+    const { deps, callRuntime } = makeDeps()
+    callRuntime.mockResolvedValue(success({ send: { handle: 'term_a', accepted: true } }))
+    const result = await createSessionCanvasActions(deps).sendPrompt({
+      paneKey: 'pane-a',
+      text: '\x1b',
+      keys: true
+    })
+    expect(result).toEqual({ ok: true })
+    expect(callRuntime).toHaveBeenCalledWith('terminal.send', {
+      terminal: 'term_a',
+      text: '\x1b',
+      client: { id: 'session-canvas', type: 'desktop' }
+    })
+  })
+
+  it('parses the optional keys flag', () => {
+    expect(parseSendPromptArgs({ paneKey: 'p', text: '1', keys: true })).toEqual({
+      paneKey: 'p',
+      text: '1',
+      keys: true
+    })
+    expect(parseSendPromptArgs({ paneKey: 'p', text: 'hi', keys: 'yes' })).toEqual({
+      paneKey: 'p',
+      text: 'hi'
+    })
+  })
+
   it('refuses empty text without touching the runtime', async () => {
     const { deps, callRuntime } = makeDeps()
     const result = await createSessionCanvasActions(deps).sendPrompt({

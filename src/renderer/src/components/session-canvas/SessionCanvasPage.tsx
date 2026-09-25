@@ -14,13 +14,11 @@ import {
 import '@xyflow/react/dist/base.css'
 import './session-canvas.css'
 import { translate } from '@/i18n/i18n'
+import { ExternalSessionCard } from './ExternalSessionCard'
+import { LiveSessionCard } from './LiveSessionCard'
 import { SessionCanvasToolbar } from './SessionCanvasToolbar'
 import { SessionEdge } from './SessionEdge'
 import { SessionGroupNode } from './SessionGroupNode'
-import {
-  ExternalSessionPlaceholderCard,
-  LiveSessionPlaceholderCard
-} from './SessionPlaceholderCards'
 import {
   EMPTY_SESSION_FLOW_LOCAL_STATE,
   applySessionFlowChanges,
@@ -35,8 +33,8 @@ import type { SessionCanvasFilters } from './session-graph-types'
 import { useSessionCanvasData } from './use-session-canvas-data'
 
 const NODE_TYPES: NodeTypes = {
-  live: LiveSessionPlaceholderCard,
-  external: ExternalSessionPlaceholderCard,
+  live: LiveSessionCard,
+  external: ExternalSessionCard,
   sessionGroup: SessionGroupNode
 }
 const EDGE_TYPES: EdgeTypes = { session: SessionEdge }
