@@ -300,6 +300,10 @@ vi.mock('../runtime', () => ({
   registerRuntimeHandlers: registerRuntimeHandlersMock
 }))
 
+vi.mock('../session-canvas-actions', () => ({
+  registerSessionCanvasActionHandlers: vi.fn()
+}))
+
 vi.mock('../runtime-environments', () => ({
   registerRuntimeEnvironmentHandlers: registerRuntimeEnvironmentHandlersMock
 }))

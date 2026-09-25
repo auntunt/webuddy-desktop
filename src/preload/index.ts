@@ -41,6 +41,7 @@ import { claudeAccountsApi } from './api/claude-accounts-bridge'
 import { cliApi } from './api/cli-bridge'
 import { codexConfigSyncApi } from './api/codex-config-sync-bridge'
 import { webuddyCollectorApi } from './api/webuddy-collector-bridge'
+import { sessionCanvasApi } from './api/session-canvas-bridge'
 import { agentTrustApi } from './api/agent-trust-bridge'
 import { preflightApi } from './api/preflight-bridge'
 import { notificationsApi } from './api/notifications-bridge'
@@ -140,6 +141,7 @@ const api = {
   cli: cliApi,
   codexConfigSync: codexConfigSyncApi,
   webuddyCollector: webuddyCollectorApi,
+  sessionCanvas: sessionCanvasApi,
   agentTrust: agentTrustApi,
   preflight: preflightApi,
   notifications: notificationsApi,

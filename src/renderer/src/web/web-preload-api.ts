@@ -52,6 +52,7 @@ import { createWebWorkspacePortsApi } from './preload-api/web-workspace-ports-ap
 import { createWebWorkspaceSessionApi } from './preload-api/web-workspace-session-api'
 import { createWorktreesApi } from './preload-api/web-worktrees-api'
 import { createWebWebuddyCollectorApi } from './preload-api/web-webuddy-collector-api'
+import { createWebSessionCanvasApi } from './preload-api/web-session-canvas-api'
 import { readStoredWebRuntimeEnvironment } from './web-runtime-environment'
 
 export function installWebPreloadApi(): void {
@@ -136,6 +137,7 @@ function createWebPreloadApi(): Partial<PreloadApi> {
     ...createWebAgentStatusApi(),
     ...createWebMobileApi(),
     ...createWebTelemetryApi(),
-    ...createWebWebuddyCollectorApi()
+    ...createWebWebuddyCollectorApi(),
+    ...createWebSessionCanvasApi()
   }
 }

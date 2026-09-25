@@ -57,6 +57,7 @@ import { registerSpeechHandlers } from '../speech'
 import { registerTerminalRenderDesyncEvidenceHandler } from '../terminal-render-desync-evidence'
 import { registerOrcaProfileHandlers } from '../orca-profiles'
 import { registerWebuddyCollectorHandlers } from '../webuddy-collector-handlers'
+import { registerSessionCanvasActionHandlers } from '../session-canvas-actions'
 import { registerCodexAccountHandlers } from '../codex-accounts'
 import { registerAgentHookHandlers } from '../agent-hooks'
 import { registerCodexConfigSyncHandlers } from '../codex-config-sync'
@@ -194,6 +195,7 @@ export function registerCoreHandlers(
   }
   registerTelemetryHandlers(store)
   registerWebuddyCollectorHandlers()
+  registerSessionCanvasActionHandlers(runtime)
   registerOrcaProfileHandlers(store, {
     onBeforeRelaunch: lifecycleOptions.onBeforeRelaunch,
     onAuthMutation: lifecycleOptions.onOrcaProfileAuthMutation,

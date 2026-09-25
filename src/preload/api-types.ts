@@ -59,6 +59,7 @@ import type { UiCommandEventApi } from './api/ui-command-event-api'
 import type { UiWindowApi } from './api/ui-window-api'
 import type { UpdaterApi } from './api/updater-api'
 import type { WebuddyCollectorApi } from './api/webuddy-collector-api'
+import type { SessionCanvasApi } from './api/session-canvas-api'
 import type { WorkspaceCleanupApi, WorkspaceSpaceApi } from './api/workspace-cleanup-api'
 import type { LocalhostWorktreeLabelsApi, WorkspacePortsApi } from './api/workspace-port-api'
 import type { WorkspaceSessionApi } from './api/workspace-session-api'
@@ -106,6 +107,7 @@ export type PreloadApi = {
   cli: CliApi
   codexConfigSync: CodexConfigSyncApi
   webuddyCollector: WebuddyCollectorApi
+  sessionCanvas: SessionCanvasApi
   agentTrust: AgentTrustApi
   preflight: PreflightApi
   notifications: NotificationsApi
