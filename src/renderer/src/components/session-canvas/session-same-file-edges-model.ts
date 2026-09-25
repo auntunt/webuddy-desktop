@@ -6,6 +6,31 @@ export const SAME_FILE_EDGE_MAX_FILES = 20
 
 type WorktreeMembers = { worktreeId: string; sessions: CanvasSession[] }
 
+const LOCKFILE_NAMES = new Set(['pnpm-lock.yaml', 'package-lock.json', 'go.sum'])
+
+// Why: every dependency bump rewrites these, so they would link unrelated worktrees.
+export function isLockfileNoise(file: string): boolean {
+  const name = file.slice(Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\')) + 1)
+  return LOCKFILE_NAMES.has(name) || name.endsWith('.lock')
+}
+
+function recencyOf(session: CanvasSession): [number, number] {
+  return session.data.kind === 'live'
+    ? [session.data.entry.updatedAt, session.data.entry.stateStartedAt]
+    : [0, 0]
+}
+
+/** The worktree's most recently active session stands in for it on cross-worktree edges. */
+function mostRecentSession(sessions: CanvasSession[]): CanvasSession {
+  return sessions.reduce((best, candidate) => {
+    const [bestUpdated, bestStarted] = recencyOf(best)
+    const [updated, started] = recencyOf(candidate)
+    return updated > bestUpdated || (updated === bestUpdated && started > bestStarted)
+      ? candidate
+      : best
+  })
+}
+
 function sameFileEdge(a: string, b: string, files: string[]): SessionGraphEdge {
   const [source, target] = a < b ? [a, b] : [b, a]
   return {
@@ -65,14 +90,14 @@ function crossWorktreeEdges(
   changed: Record<string, string[]>
 ): SessionGraphEdge[] {
   const edges: SessionGraphEdge[] = []
-  const pairs = sharedFilesByWorktreePair(worktrees.map((w) => changed[w.worktreeId] ?? []))
+  const pairs = sharedFilesByWorktreePair(
+    worktrees.map((w) => (changed[w.worktreeId] ?? []).filter((file) => !isLockfileNoise(file)))
+  )
+  const representatives = worktrees.map((w) => mostRecentSession(w.sessions))
+  // Why one edge per pair: 10 sessions × 10 sessions would otherwise draw 100 identical edges.
   for (const [key, files] of pairs) {
     const [u, w] = key.split(':').map(Number)
-    for (const a of worktrees[u].sessions) {
-      for (const b of worktrees[w].sessions) {
-        edges.push(sameFileEdge(a.id, b.id, files))
-      }
-    }
+    edges.push(sameFileEdge(representatives[u].id, representatives[w].id, files))
   }
   return edges
 }

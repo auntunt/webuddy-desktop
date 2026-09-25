@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentActionHistoryEntry } from '../../../../shared/agent-status-types'
 import { buildSessionGraph } from './session-graph-model'
-import { WT_A, WT_B, makeEntry, makeInputs } from './session-graph-test-fixtures'
+import { NOW, WT_A, WT_B, makeEntry, makeInputs } from './session-graph-test-fixtures'
 
 const edit = (path: string): AgentActionHistoryEntry => ({
   toolName: 'Edit',
@@ -94,5 +94,60 @@ describe('same-file edges across worktrees', () => {
       expect(elapsed).toBeLessThan(400)
       expect(edges.every((edge) => (edge.files?.length ?? 0) <= 20)).toBe(true)
     }
+  })
+
+  it("draws one edge per worktree pair, between each worktree's most recent session", () => {
+    const edges = sameFileEdges(
+      makeInputs({
+        liveEntries: [
+          makeEntry('old', { updatedAt: NOW - 1000 }),
+          makeEntry('new', { updatedAt: NOW }),
+          makeEntry('b1', { worktreeId: WT_B, updatedAt: NOW - 5 }),
+          makeEntry('b2', { worktreeId: WT_B, updatedAt: NOW - 10 })
+        ],
+        changedFilesByWorktree: { [WT_A]: ['src/x.ts'], [WT_B]: ['src/x.ts'] }
+      })
+    )
+    expect(edges.map((edge) => [edge.source, edge.target, edge.files])).toEqual([
+      ['live:b1', 'live:new', ['src/x.ts']]
+    ])
+  })
+
+  it('ignores lockfiles and other generated noise when comparing worktrees', () => {
+    const noise = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'Cargo.lock', 'go.sum']
+    const onlyNoise = sameFileEdges(
+      makeInputs({
+        liveEntries: [makeEntry('a'), makeEntry('b', { worktreeId: WT_B })],
+        changedFilesByWorktree: {
+          [WT_A]: [...noise, 'apps/web/Gemfile.lock'],
+          [WT_B]: [...noise, 'apps/web/Gemfile.lock']
+        }
+      })
+    )
+    expect(onlyNoise).toEqual([])
+    const mixed = sameFileEdges(
+      makeInputs({
+        liveEntries: [makeEntry('a'), makeEntry('b', { worktreeId: WT_B })],
+        changedFilesByWorktree: { [WT_A]: [...noise, 'src/x.ts'], [WT_B]: [...noise, 'src/x.ts'] }
+      })
+    )
+    expect(mixed.map((edge) => edge.files)).toEqual([['src/x.ts']])
+  })
+
+  it('bounds cross-worktree edges by worktree pairs for 200 sessions', () => {
+    const worktree = (i: number): string => `repo-1::/work/wt${i}`
+    const changed: Record<string, string[]> = {}
+    const repoIdByWorktree: Record<string, string> = {}
+    for (let w = 0; w < 20; w++) {
+      changed[worktree(w)] = ['src/shared.ts', 'pnpm-lock.yaml']
+      repoIdByWorktree[worktree(w)] = 'repo-1'
+    }
+    const liveEntries = Array.from({ length: 200 }, (_, i) =>
+      makeEntry(`p${i}`, { worktreeId: worktree(i % 20) })
+    )
+    const edges = sameFileEdges(
+      makeInputs({ liveEntries, changedFilesByWorktree: changed, repoIdByWorktree })
+    )
+    expect(edges).toHaveLength((20 * 19) / 2)
   })
 })

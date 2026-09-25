@@ -113,8 +113,8 @@ describe('SessionCanvasPage', () => {
       ])
     )
     expect(screen.getByTestId('session-edge-flow')).toBeTruthy()
-    // a and b share WT_A; each collides with c in WT_B.
-    expect(screen.getAllByText('1 个相同文件')).toHaveLength(2)
+    // One edge per worktree pair: WT_A's most recent session collides with c in WT_B.
+    expect(screen.getAllByText('1 个相同文件')).toHaveLength(1)
   })
 
   it('offers connection handles on live cards only', async () => {
@@ -146,6 +146,6 @@ describe('SessionCanvasPage', () => {
     await renderPage({ changedFilesByWorktree: { [WT_A]: ['src/x.ts'], [WT_B]: ['src/x.ts'] } })
     expect(screen.queryByRole('button', { name: '弹出' })).toBeNull()
     expect(mocks.fetchChangedFiles).not.toHaveBeenCalled()
-    expect(screen.getAllByText('1 个相同文件')).toHaveLength(2)
+    expect(screen.getAllByText('1 个相同文件')).toHaveLength(1)
   })
 })
