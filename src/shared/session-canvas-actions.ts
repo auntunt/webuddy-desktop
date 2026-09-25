@@ -10,4 +10,5 @@ export type SessionCanvasSuperviseArgs = {
 
 export type SessionCanvasSuperviseResult =
   | { ok: true; dispatchId: string }
-  | { ok: false; reason: string }
+  // Why: a dispatchId on failure means the preamble may already have reached the worker.
+  | { ok: false; reason: string; dispatchId?: string }

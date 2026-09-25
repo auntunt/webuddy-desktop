@@ -304,6 +304,10 @@ vi.mock('../session-canvas-actions', () => ({
   registerSessionCanvasActionHandlers: vi.fn()
 }))
 
+vi.mock('../webuddy-collector-handlers', () => ({
+  registerWebuddyCollectorHandlers: vi.fn()
+}))
+
 vi.mock('../runtime-environments', () => ({
   registerRuntimeEnvironmentHandlers: registerRuntimeEnvironmentHandlersMock
 }))

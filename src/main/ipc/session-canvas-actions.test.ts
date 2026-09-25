@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn(), removeHandler: vi.fn() } }))
 
-import { createSessionCanvasActions, type SessionCanvasActionDeps } from './session-canvas-actions'
+import {
+  SUPERVISE_IN_FLIGHT_REASON,
+  createSessionCanvasActions,
+  parseSendPromptArgs,
+  parseSuperviseArgs,
+  type SessionCanvasActionDeps
+} from './session-canvas-actions'
 
 const meta = { runtimeId: 'rt' }
 const success = (result: unknown) => ({ id: 'x', ok: true as const, result, _meta: meta })
@@ -14,7 +20,11 @@ const failure = (message: string) => ({
 })
 
 function makeDeps(overrides: Partial<SessionCanvasActionDeps> = {}) {
-  const handles: Record<string, string> = { 'pane-a': 'term_a', 'pane-b': 'term_b' }
+  const handles: Record<string, string> = {
+    'pane-a': 'term_a',
+    'pane-b': 'term_b',
+    'pane-c': 'term_c'
+  }
   const callRuntime = vi.fn<SessionCanvasActionDeps['callRuntime']>()
   const deps: SessionCanvasActionDeps = {
     resolveTerminalHandle: (paneKey) => handles[paneKey] ?? null,
@@ -95,11 +105,11 @@ describe('sessionCanvas supervise', () => {
     const result = await createSessionCanvasActions(deps).supervise(args)
     expect(result).toEqual({ ok: true, dispatchId: 'd1' })
     expect(callRuntime).toHaveBeenCalledTimes(1)
-    expect(callRuntime).toHaveBeenCalledWith('orchestration.workerStart', {
-      from: 'term_a',
-      terminal: 'term_b',
-      spec: 'fix the bug'
-    })
+    expect(callRuntime).toHaveBeenCalledWith(
+      'orchestration.workerStart',
+      { from: 'term_a', terminal: 'term_b', spec: 'fix the bug' },
+      { requestId: expect.stringMatching(/^session-canvas-start-/) }
+    )
   })
 
   it('creates a run for the coordinator when none is bound', async () => {
@@ -111,7 +121,8 @@ describe('sessionCanvas supervise', () => {
     expect(result).toEqual({ ok: true, dispatchId: 'd2' })
     expect(callRuntime.mock.calls[0]).toEqual([
       'orchestration.runCreate',
-      { from: 'term_a', objective: 'fix the bug' }
+      { from: 'term_a', objective: 'fix the bug' },
+      { requestId: expect.stringMatching(/^session-canvas-run-/) }
     ])
     expect(callRuntime.mock.calls[1]?.[0]).toBe('orchestration.workerStart')
   })
@@ -140,5 +151,73 @@ describe('sessionCanvas supervise', () => {
     expect((await actions.supervise({ ...args, workerPaneKey: 'pane-z' })).ok).toBe(false)
     expect((await actions.supervise({ ...args, coordinatorPaneKey: 'pane-z' })).ok).toBe(false)
     expect(callRuntime).not.toHaveBeenCalled()
+  })
+
+  it('reports outcome_unknown as a failure that keeps the dispatch id', async () => {
+    const { deps, callRuntime } = makeDeps()
+    callRuntime.mockResolvedValue(
+      success({ dispatchId: 'd4', state: 'outcome_unknown', lastError: 'turn not observed' })
+    )
+    const result = await createSessionCanvasActions(deps).supervise(args)
+    expect(result).toEqual({ ok: false, reason: 'turn not observed', dispatchId: 'd4' })
+  })
+
+  it('refuses a concurrent second supervise of the same pair and creates at most one run', async () => {
+    let hasRun = false
+    const { deps, callRuntime } = makeDeps({ hasCurrentRun: () => hasRun })
+    callRuntime.mockImplementation(async (method) => {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      if (method === 'orchestration.runCreate') {
+        hasRun = true
+        return success({ run: { id: 'run_1' } })
+      }
+      return success({ dispatchId: 'd5', state: 'ready' })
+    })
+    const actions = createSessionCanvasActions(deps)
+    const [first, second] = await Promise.all([actions.supervise(args), actions.supervise(args)])
+    expect(first).toEqual({ ok: true, dispatchId: 'd5' })
+    expect(second).toEqual({ ok: false, reason: SUPERVISE_IN_FLIGHT_REASON })
+    const methods = callRuntime.mock.calls.map((call) => call[0])
+    expect(methods.filter((m) => m === 'orchestration.runCreate')).toHaveLength(1)
+    expect(methods.filter((m) => m === 'orchestration.workerStart')).toHaveLength(1)
+  })
+
+  it('serializes run creation across different workers of one coordinator', async () => {
+    let hasRun = false
+    const { deps, callRuntime } = makeDeps({ hasCurrentRun: () => hasRun })
+    callRuntime.mockImplementation(async (method) => {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      if (method === 'orchestration.runCreate') {
+        hasRun = true
+        return success({ run: { id: 'run_1' } })
+      }
+      return success({ dispatchId: 'd6', state: 'ready' })
+    })
+    const actions = createSessionCanvasActions(deps)
+    const results = await Promise.all([
+      actions.supervise(args),
+      actions.supervise({ ...args, workerPaneKey: 'pane-c' })
+    ])
+    expect(results.every((r) => r.ok)).toBe(true)
+    const methods = callRuntime.mock.calls.map((call) => call[0])
+    expect(methods.filter((m) => m === 'orchestration.runCreate')).toHaveLength(1)
+    expect(methods.filter((m) => m === 'orchestration.workerStart')).toHaveLength(2)
+    const requestIds = callRuntime.mock.calls.map((call) => call[2]?.requestId)
+    expect(new Set(requestIds).size).toBe(requestIds.length)
+  })
+})
+
+describe('sessionCanvas IPC argument parsing', () => {
+  it('accepts well-typed args and rejects anything else', () => {
+    expect(parseSendPromptArgs({ paneKey: 'p', text: 't' })).toEqual({ paneKey: 'p', text: 't' })
+    expect(parseSendPromptArgs({ paneKey: 'p', text: 3 })).toBeNull()
+    expect(parseSendPromptArgs(null)).toBeNull()
+    expect(parseSuperviseArgs({ coordinatorPaneKey: 'a', workerPaneKey: 'b', task: 't' })).toEqual({
+      coordinatorPaneKey: 'a',
+      workerPaneKey: 'b',
+      task: 't'
+    })
+    expect(parseSuperviseArgs({ coordinatorPaneKey: 'a', workerPaneKey: 'b' })).toBeNull()
+    expect(parseSuperviseArgs('x')).toBeNull()
   })
 })
