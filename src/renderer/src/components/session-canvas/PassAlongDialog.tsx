@@ -20,6 +20,7 @@ import {
   previewPassAlongText,
   type ResolvedSessionConnection
 } from './session-connect-model'
+import { useSessionConnectionBlock } from './use-session-connection-block'
 
 async function recordPassAlong(connection: ResolvedSessionConnection): Promise<void> {
   const failed = (reason: string): void => {
@@ -52,6 +53,7 @@ function PassAlongForm({
 }): React.JSX.Element {
   const [note, setNote] = useState('')
   const [sending, setSending] = useState(false)
+  const blocked = useSessionConnectionBlock(connection, 'pass-along')
   const fromTitle = liveSessionTitle(connection.from)
   const toTitle = liveSessionTitle(connection.to)
   const prompt = useMemo(
@@ -64,7 +66,7 @@ function PassAlongForm({
     [fromTitle, connection.from, note]
   )
   const submit = async (): Promise<void> => {
-    if (sending) {
+    if (sending || blocked) {
       return
     }
     setSending(true)
@@ -124,11 +126,16 @@ function PassAlongForm({
           {previewPassAlongText(prompt)}
         </pre>
       </div>
+      {blocked ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          {blocked}
+        </p>
+      ) : null}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onDone}>
           {translate('sessionCanvas.dialog.cancel', '取消')}
         </Button>
-        <Button type="submit" disabled={sending}>
+        <Button type="submit" disabled={sending || blocked !== null}>
           {translate('sessionCanvas.passAlong.submit', '传话')}
         </Button>
       </DialogFooter>

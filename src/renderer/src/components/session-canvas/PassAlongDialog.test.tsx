@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAppStore } from '@/store'
 import { makeEntry } from './session-graph-test-fixtures'
 
 const mocks = vi.hoisted(() => ({
@@ -35,13 +36,13 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function renderDialog(): {
+function renderDialog(target: typeof connection = connection): {
   onOpenChange: ReturnType<typeof vi.fn>
   onSent: ReturnType<typeof vi.fn>
 } {
   const onOpenChange = vi.fn()
   const onSent = vi.fn()
-  render(<PassAlongDialog connection={connection} onOpenChange={onOpenChange} onSent={onSent} />)
+  render(<PassAlongDialog connection={target} onOpenChange={onOpenChange} onSent={onSent} />)
   return { onOpenChange, onSent }
 }
 
@@ -95,5 +96,33 @@ describe('PassAlongDialog', () => {
     })
     expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining('disk full'))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('disables sending and says why when A has no result yet', () => {
+    renderDialog({ ...connection, from: makeEntry('a', { terminalTitle: 'Coordinator' }) })
+    expect(screen.getByRole('button', { name: '传话' })).toHaveProperty('disabled', true)
+    expect(screen.getByText('「Coordinator」还没有可传的结果。')).toBeTruthy()
+  })
+
+  it('disables sending while either host cannot be verified', () => {
+    useAppStore.setState({
+      sshConnectionStates: new Map([
+        ['conn-1', { targetId: 't', status: 'disconnected', error: null, reconnectAttempt: 0 }]
+      ])
+    })
+    renderDialog({
+      ...connection,
+      to: makeEntry('b', { terminalTitle: 'Worker', connectionId: 'conn-1' })
+    })
+    expect(screen.getByRole('button', { name: '传话' })).toHaveProperty('disabled', true)
+    expect(screen.getByText(/无法确认「Worker」所在主机的连接/)).toBeTruthy()
+    cleanup()
+    renderDialog({
+      ...connection,
+      from: { ...connection.from, connectionId: 'conn-1' }
+    })
+    expect(screen.getByRole('button', { name: '传话' })).toHaveProperty('disabled', true)
+    expect(screen.getByText(/无法确认「Coordinator」所在主机的连接/)).toBeTruthy()
+    useAppStore.setState({ sshConnectionStates: new Map() })
   })
 })

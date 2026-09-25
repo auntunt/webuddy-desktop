@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAppStore } from '@/store'
 import { makeEntry } from './session-graph-test-fixtures'
 
 const mocks = vi.hoisted(() => ({
@@ -33,9 +34,11 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function renderDialog(): { onOpenChange: ReturnType<typeof vi.fn> } {
+function renderDialog(target: typeof connection = connection): {
+  onOpenChange: ReturnType<typeof vi.fn>
+} {
   const onOpenChange = vi.fn()
-  render(<SuperviseDialog connection={connection} onOpenChange={onOpenChange} />)
+  render(<SuperviseDialog connection={target} onOpenChange={onOpenChange} />)
   return { onOpenChange }
 }
 
@@ -116,5 +119,21 @@ describe('SuperviseDialog', () => {
       expect.objectContaining({ description: expect.stringContaining('d-9') })
     )
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('disables dispatch while the worker host cannot be verified', () => {
+    useAppStore.setState({
+      sshConnectionStates: new Map([
+        ['conn-1', { targetId: 't', status: 'disconnected', error: null, reconnectAttempt: 0 }]
+      ])
+    })
+    renderDialog({
+      ...connection,
+      to: makeEntry('b', { terminalTitle: 'Worker', connectionId: 'conn-1' })
+    })
+    fireEvent.change(taskField(), { target: { value: '修复登录' } })
+    expect(submitButton()).toHaveProperty('disabled', true)
+    expect(screen.getByText(/无法确认「Worker」所在主机的连接/)).toBeTruthy()
+    useAppStore.setState({ sshConnectionStates: new Map() })
   })
 })

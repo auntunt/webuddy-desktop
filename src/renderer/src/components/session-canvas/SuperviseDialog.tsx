@@ -16,6 +16,7 @@ import { translate } from '@/i18n/i18n'
 import type { SessionCanvasSuperviseResult } from '../../../../shared/session-canvas-actions'
 import { liveSessionTitle } from './live-session-card-model'
 import type { ResolvedSessionConnection } from './session-connect-model'
+import { useSessionConnectionBlock } from './use-session-connection-block'
 
 /** Toasts the outcome; returns whether the dialog should close. */
 function reportSuperviseResult(result: SessionCanvasSuperviseResult, workerTitle: string): boolean {
@@ -62,11 +63,12 @@ function SuperviseForm({
 }): React.JSX.Element {
   const [task, setTask] = useState('')
   const [pending, setPending] = useState(false)
+  const blocked = useSessionConnectionBlock(connection, 'supervise')
   const coordinatorTitle = liveSessionTitle(connection.from)
   const workerTitle = liveSessionTitle(connection.to)
   const trimmed = task.trim()
   const submit = async (): Promise<void> => {
-    if (!trimmed || pending) {
+    if (!trimmed || pending || blocked) {
       return
     }
     setPending(true)
@@ -124,6 +126,11 @@ function SuperviseForm({
             }
           }}
         />
+        {blocked ? (
+          <p role="status" className="text-xs text-muted-foreground">
+            {blocked}
+          </p>
+        ) : null}
         {pending ? (
           <p className="text-xs text-muted-foreground">
             {translate('sessionCanvas.supervise.pendingHint', '正在让 B 接手任务，最长约一分钟。')}
@@ -134,7 +141,7 @@ function SuperviseForm({
         <Button type="button" variant="ghost" onClick={onDone}>
           {translate('sessionCanvas.dialog.cancel', '取消')}
         </Button>
-        <Button type="submit" className="w-24" disabled={!trimmed || pending}>
+        <Button type="submit" className="w-24" disabled={!trimmed || pending || blocked !== null}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
           {pending
             ? translate('sessionCanvas.supervise.pending', '派发中…')
