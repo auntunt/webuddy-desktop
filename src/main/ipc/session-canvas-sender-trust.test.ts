@@ -10,8 +10,11 @@ vi.mock('../window/session-canvas-popout-window', () => ({ sessionCanvasPopout: 
 
 import { sessionCanvasSenderRefusal } from './session-canvas-sender-trust'
 
-function event(sender: { mainFrame: object }, frame: object = sender.mainFrame) {
-  return { sender, senderFrame: frame }
+type SenderEvent = Parameters<typeof sessionCanvasSenderRefusal>[0]
+
+function event(sender: { mainFrame: object }, frame: object = sender.mainFrame): SenderEvent {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the refusal check only compares senderFrame to sender.mainFrame and passes sender to mocked identity checks.
+  return { sender, senderFrame: frame } as unknown as SenderEvent
 }
 
 const mainSender = { mainFrame: { id: 'main' } }
