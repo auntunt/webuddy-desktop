@@ -23,7 +23,7 @@ export function ExternalSessionCard({
   const footer = [
     session.agentLabel,
     repoLabel ?? (session.cwd ? basename(session.cwd) : null),
-    Number.isFinite(updatedAt) ? formatCompactDuration(now - updatedAt) : null
+    Number.isFinite(updatedAt) ? formatCompactDuration(Math.max(0, now - updatedAt)) : null
   ]
     .filter(Boolean)
     .join(' · ')

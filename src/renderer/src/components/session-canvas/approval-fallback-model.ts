@@ -71,11 +71,9 @@ export function resolveSessionApproval(entry: ApprovalInput): ChatApproval | nul
   if (parseAskFromStatus(entry.interactivePrompt, entry.toolName)) {
     return null
   }
-  const text = detectTextApproval(entry.lastAssistantMessage ?? '')
-  const structured = parseApprovalFromStatus(entry.interactivePrompt)
-  // Why: the agent's own numbered menu beats the envelope's default keys (mobile precedence).
-  if (text && text.options.every((option) => /^\d+$/.test(option.send))) {
-    return structured ? { ...structured, options: text.options } : text
-  }
-  return structured ?? text
+  // Why: the host-emitted request always wins; prose may hold an unrelated numbered list.
+  return (
+    parseApprovalFromStatus(entry.interactivePrompt) ??
+    detectTextApproval(entry.lastAssistantMessage ?? '')
+  )
 }

@@ -56,4 +56,17 @@ describe('ExternalSessionCard', () => {
     expect(screen.getByText('Codex · tool')).toBeTruthy()
     expect(screen.getByText('暂无预览')).toBeTruthy()
   })
+
+  it('clamps a clock-skewed future update time to zero', async () => {
+    renderSessionCardNode(
+      { external: ExternalSessionCard },
+      {
+        kind: 'external',
+        session: makeExternal('e3', { updatedAt: new Date(NOW + 10 * 60_000).toISOString() }),
+        repoLabel: 'tool'
+      }
+    )
+    await act(async () => {})
+    expect(screen.getByText('Codex · tool · 0m')).toBeTruthy()
+  })
 })

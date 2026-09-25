@@ -7,6 +7,8 @@ import { ALL_RPC_METHODS } from '../runtime/rpc/methods'
 import { ORCHESTRATION_CONTRACT_VERSION } from '../../shared/protocol-version'
 import { DESKTOP_RENDERER_RUNTIME_CLIENT_CAPABILITIES } from './desktop-renderer-runtime-capabilities'
 import type {
+  SessionCanvasClosePaneArgs,
+  SessionCanvasClosePaneResult,
   SessionCanvasSendPromptArgs,
   SessionCanvasSendPromptResult,
   SessionCanvasSuperviseArgs,
@@ -50,6 +52,11 @@ export function parseSendPromptArgs(value: unknown): SessionCanvasSendPromptArgs
   return keys === true ? { paneKey, text, keys } : { paneKey, text }
 }
 
+export function parseClosePaneArgs(value: unknown): SessionCanvasClosePaneArgs | null {
+  const { paneKey } = readRecord(value)
+  return typeof paneKey === 'string' ? { paneKey } : null
+}
+
 export function parseSuperviseArgs(value: unknown): SessionCanvasSuperviseArgs | null {
   const { coordinatorPaneKey, workerPaneKey, task } = readRecord(value)
   return typeof coordinatorPaneKey === 'string' &&
@@ -61,6 +68,7 @@ export function parseSuperviseArgs(value: unknown): SessionCanvasSuperviseArgs |
 
 export function createSessionCanvasActions(deps: SessionCanvasActionDeps): {
   sendPrompt: (args: SessionCanvasSendPromptArgs) => Promise<SessionCanvasSendPromptResult>
+  closePane: (args: SessionCanvasClosePaneArgs) => Promise<SessionCanvasClosePaneResult>
   supervise: (args: SessionCanvasSuperviseArgs) => Promise<SessionCanvasSuperviseResult>
 } {
   const inFlightSupervisions = new Set<string>()
@@ -167,6 +175,16 @@ export function createSessionCanvasActions(deps: SessionCanvasActionDeps): {
       )
     },
 
+    async closePane({ paneKey }) {
+      const terminal = deps.resolveTerminalHandle(paneKey)
+      if (!terminal) {
+        return unknownPane(paneKey)
+      }
+      // Why: terminal.close stops one PTY and only closes the tab for its last leaf, so split siblings survive.
+      const response = await deps.callRuntime('terminal.close', { terminal })
+      return response.ok ? { ok: true } : fail(response.error.message)
+    },
+
     async supervise(args) {
       const spec = args.task.trim()
       if (!spec) {
@@ -223,6 +241,14 @@ export function registerSessionCanvasActionHandlers(runtime: OrcaRuntimeService)
     }
     const args = parseSendPromptArgs(value)
     return args ? actions.sendPrompt(args).catch(toFailure) : fail('发送参数无效。')
+  })
+  ipcMain.removeHandler('sessionCanvas:closePane')
+  ipcMain.handle('sessionCanvas:closePane', async (event, value: unknown) => {
+    if (!isMainFrame(event)) {
+      return fail('请求必须来自当前窗口。')
+    }
+    const args = parseClosePaneArgs(value)
+    return args ? actions.closePane(args).catch(toFailure) : fail('关闭参数无效。')
   })
   ipcMain.removeHandler('sessionCanvas:supervise')
   ipcMain.handle('sessionCanvas:supervise', async (event, value: unknown) => {

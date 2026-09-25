@@ -49,6 +49,25 @@ describe('SessionApprovalActions', () => {
     expect(screen.getByRole('button', { name: 'Allow' })).toHaveProperty('disabled', true)
   })
 
+  it('offers a retry when the request lingers after a sent choice', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.sendPrompt.mockResolvedValue({ ok: true })
+      render(<SessionApprovalActions paneKey="tab:leaf" approval={approval} />)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+      })
+      expect(screen.getByRole('button', { name: 'Allow' })).toHaveProperty('disabled', true)
+      await act(async () => {
+        vi.advanceTimersByTime(8000)
+      })
+      expect(screen.getByText('没有反应？可以重试')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Allow' })).toHaveProperty('disabled', false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('toasts the reason and re-enables the options when the send fails', async () => {
     mocks.sendPrompt.mockResolvedValue({ ok: false, reason: '终端当前不接受输入。' })
     render(<SessionApprovalActions paneKey="tab:leaf" approval={approval} />)

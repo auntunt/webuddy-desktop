@@ -12,14 +12,16 @@ const PANE_KEY = `tab1:${LEAF}`
 
 const mocks = vi.hoisted(() => {
   const worktreesByRepo: Record<string, unknown[]> = {}
+  const noSettings = (): { skipCloseTerminalWithRunningProcessConfirm?: boolean } | null => null
   return {
     state: {
       worktreesByRepo,
       sshConnectionStates: new Map<string, { status: string }>(),
-      sshTargetLabels: new Map<string, string>()
+      sshTargetLabels: new Map<string, string>(),
+      settings: noSettings()
     },
     reveal: vi.fn(),
-    closeTab: vi.fn(),
+    closePane: vi.fn(),
     sendPrompt: vi.fn()
   }
 })
@@ -28,9 +30,9 @@ vi.mock('@/store', () => ({
   useAppStore: (selector: (state: typeof mocks.state) => unknown) => selector(mocks.state)
 }))
 vi.mock('../dashboard/reveal-dashboard-agent', () => ({ revealDashboardAgent: mocks.reveal }))
-vi.mock('../terminal/terminal-tab-actions', () => ({ closeTerminalTab: mocks.closeTab }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
+import { useRunningTerminalCloseConfirmStore } from '@/store/running-terminal-close-confirm'
 import { LiveSessionCard } from './LiveSessionCard'
 
 let restoreDom: () => void = () => {}
@@ -39,14 +41,17 @@ beforeEach(() => {
   restoreDom = installReactFlowTestDom()
   vi.spyOn(Date, 'now').mockReturnValue(NOW)
   mocks.sendPrompt.mockResolvedValue({ ok: true })
+  mocks.closePane.mockResolvedValue({ ok: true })
+  useRunningTerminalCloseConfirmStore.setState({ runningTerminalCloseConfirm: null })
   mocks.state.worktreesByRepo = {
     'repo-1': [{ id: WT_A, branch: 'refs/heads/feature/login', displayName: 'app' }]
   }
   mocks.state.sshConnectionStates = new Map()
   mocks.state.sshTargetLabels = new Map()
+  mocks.state.settings = null
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { sessionCanvas: { sendPrompt: mocks.sendPrompt } }
+    value: { sessionCanvas: { sendPrompt: mocks.sendPrompt, closePane: mocks.closePane } }
   })
 })
 
@@ -128,10 +133,34 @@ describe('LiveSessionCard', () => {
     expect(mocks.sendPrompt).toHaveBeenCalledWith({ paneKey: PANE_KEY, text: 'also add a test' })
   })
 
-  it('closes the terminal through the shared tab close action', async () => {
+  it('closes only this pane when the agent is not working', async () => {
+    await renderCard({ state: 'done' })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '关闭终端' }))
+    })
+    expect(mocks.closePane).toHaveBeenCalledWith({ paneKey: PANE_KEY })
+  })
+
+  it('asks through the running-terminal confirmation before closing a working agent', async () => {
     await renderCard()
     fireEvent.click(screen.getByRole('button', { name: '关闭终端' }))
-    expect(mocks.closeTab).toHaveBeenCalledWith('tab1')
+    const request = useRunningTerminalCloseConfirmStore.getState().runningTerminalCloseConfirm
+    expect(request).toMatchObject({ terminalTabId: 'tab1', copyKind: 'agent' })
+    expect(mocks.closePane).not.toHaveBeenCalled()
+    await act(async () => {
+      useRunningTerminalCloseConfirmStore.getState().confirmRunningTerminalClose()
+    })
+    expect(mocks.closePane).toHaveBeenCalledWith({ paneKey: PANE_KEY })
+  })
+
+  it('skips the confirmation when the user opted out of it', async () => {
+    mocks.state.settings = { skipCloseTerminalWithRunningProcessConfirm: true }
+    await renderCard()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '关闭终端' }))
+    })
+    expect(useRunningTerminalCloseConfirmStore.getState().runningTerminalCloseConfirm).toBeNull()
+    expect(mocks.closePane).toHaveBeenCalledWith({ paneKey: PANE_KEY })
   })
 
   it('marks a remote session on a disconnected host as unverifiable, never ended', async () => {
@@ -141,6 +170,9 @@ describe('LiveSessionCard', () => {
     expect(screen.getByText('无法确认')).toBeTruthy()
     expect(screen.queryByText('已完成')).toBeNull()
     expect(screen.getByLabelText('SSH host · build-box')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '关闭终端' }).getAttribute('aria-description')).toBe(
+      '关闭终端（主机连接中断，关闭结果无法确认）'
+    )
   })
 
   it('shows the host badge without the unverifiable label while connected', async () => {

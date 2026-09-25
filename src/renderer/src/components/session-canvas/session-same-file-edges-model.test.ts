@@ -90,7 +90,8 @@ describe('same-file edges across worktrees', () => {
       const started = performance.now()
       const edges = sameFileEdges(inputs)
       const elapsed = performance.now() - started
-      expect(elapsed).toBeLessThan(100)
+      // Why: 400ms tolerates parallel-suite load yet still fails the old ~1274ms O(n²) pairing.
+      expect(elapsed).toBeLessThan(400)
       expect(edges.every((edge) => (edge.files?.length ?? 0) <= 20)).toBe(true)
     }
   })

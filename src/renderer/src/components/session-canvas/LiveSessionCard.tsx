@@ -20,7 +20,6 @@ import { toSshExecutionHostId } from '../../../../shared/execution-host'
 import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
 import { DashboardHostBadge } from '../dashboard-popout/DashboardHostBadge'
 import { revealDashboardAgent } from '../dashboard/reveal-dashboard-agent'
-import { closeTerminalTab } from '../terminal/terminal-tab-actions'
 import { ActionStream } from './ActionStream'
 import { resolveSessionApproval } from './approval-fallback-model'
 import {
@@ -31,6 +30,7 @@ import {
 } from './live-session-card-model'
 import { SessionApprovalActions } from './SessionApprovalActions'
 import { sessionCanvasStateLabel } from './session-canvas-labels'
+import { closeSessionPane } from './session-card-close'
 import type { SessionNodeData } from './session-graph-types'
 import { SessionMessageComposer } from './SessionMessageComposer'
 
@@ -40,11 +40,14 @@ const ELAPSED_TICK_MS = 30_000
 
 function CardIconButton({
   label,
+  hint,
   disabled,
   onClick,
   children
 }: {
   label: string
+  /** Tooltip text when it should say more than the label. */
+  hint?: string
   disabled?: boolean
   onClick: () => void
   children: React.ReactNode
@@ -57,6 +60,7 @@ function CardIconButton({
           variant="ghost"
           size="icon-xs"
           aria-label={label}
+          aria-description={hint}
           disabled={disabled}
           onClick={onClick}
         >
@@ -64,7 +68,7 @@ function CardIconButton({
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={4}>
-        {label}
+        {hint ?? label}
       </TooltipContent>
     </Tooltip>
   )
@@ -89,6 +93,9 @@ export function LiveSessionCard({ data }: NodeProps<Node<LiveData, 'live'>>): Re
   })
   const sshStatus = useAppStore((state) =>
     connectionId ? (state.sshConnectionStates.get(connectionId)?.status ?? null) : null
+  )
+  const skipCloseConfirm = useAppStore(
+    (state) => state.settings?.skipCloseTerminalWithRunningProcessConfirm === true
   )
   const hostLabel = useAppStore((state) =>
     connectionId ? state.sshTargetLabels.get(connectionId) : undefined
@@ -185,8 +192,23 @@ export function LiveSessionCard({ data }: NodeProps<Node<LiveData, 'live'>>): Re
           </CardIconButton>
           <CardIconButton
             label={translate('sessionCanvas.card.close', '关闭终端')}
-            disabled={!tabId}
-            onClick={() => tabId && closeTerminalTab(tabId)}
+            hint={
+              unverifiable
+                ? translate(
+                    'sessionCanvas.card.closeUnverifiable',
+                    '关闭终端（主机连接中断，关闭结果无法确认）'
+                  )
+                : undefined
+            }
+            onClick={() =>
+              closeSessionPane({
+                paneKey: entry.paneKey,
+                tabId,
+                title,
+                // Why: the host may still be running an unverifiable agent, so ask as if busy.
+                confirm: !skipCloseConfirm && (entry.state === 'working' || unverifiable)
+              })
+            }
           >
             <X />
           </CardIconButton>

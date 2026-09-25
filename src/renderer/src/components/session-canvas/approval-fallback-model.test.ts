@@ -16,17 +16,36 @@ describe('resolveSessionApproval', () => {
     expect(approval?.options.map((option) => option.send)).toEqual(['1', ESC])
   })
 
-  it('prefers the numbered menu the agent printed over the envelope defaults', () => {
+  it('keeps the structured request over a numbered menu in the text', () => {
     const approval = resolveSessionApproval({
       state: 'blocked',
       interactivePrompt: envelope,
       lastAssistantMessage:
         "Do you want to proceed?\n1. Yes\n2. Yes, and don't ask again\n3. No, and tell Claude"
     })
+    expect(approval?.detail).toBe('rm -rf build')
+    expect(approval?.options.map((option) => option.send)).toEqual(['1', ESC])
+  })
+
+  it('never lets a numbered list in assistant prose replace the structured keys', () => {
+    const approval = resolveSessionApproval({
+      state: 'waiting',
+      interactivePrompt: envelope,
+      lastAssistantMessage:
+        'Plan (needs your approval):\n1. Delete the old cache\n2. Drop the users table\n3. Rebuild'
+    })
+    expect(approval?.options.map((option) => option.send)).toEqual(['1', ESC])
+    expect(approval?.options.map((option) => option.label)).not.toContain('Drop the users table')
+  })
+
+  it('reads a numbered menu from the text when there is no structured request', () => {
+    const approval = resolveSessionApproval({
+      state: 'blocked',
+      lastAssistantMessage: 'Do you want to proceed?\n1. Yes\n2. No'
+    })
     expect(approval?.options).toEqual([
       { label: 'Yes', send: '1' },
-      { label: "Yes, and don't ask again", send: '2' },
-      { label: 'No, and tell Claude', send: '3' }
+      { label: 'No', send: '2' }
     ])
   })
 

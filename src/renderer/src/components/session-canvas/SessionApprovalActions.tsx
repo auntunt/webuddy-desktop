@@ -1,8 +1,12 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { AgentQuestionIcon } from '@/components/AgentQuestionIcon'
+import { translate } from '@/i18n/i18n'
 import type { ChatApproval } from '../native-chat/native-chat-interactive-prompt'
 import { sendToSession } from './session-canvas-send'
+
+// A choice the agent hasn't reacted to by then may have been lost; let the user retry.
+const RETRY_AFTER_MS = 8_000
 
 /** Inline approval choices for a waiting session; remount (key) when the request changes. */
 export function SessionApprovalActions({
@@ -15,7 +19,14 @@ export function SessionApprovalActions({
   disabled?: boolean
 }): React.JSX.Element {
   // 'sent' keeps the buttons off until the agent clears the request, so a choice isn't sent twice.
-  const [phase, setPhase] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [phase, setPhase] = useState<'idle' | 'sending' | 'sent' | 'retry'>('idle')
+  useEffect(() => {
+    if (phase !== 'sent') {
+      return
+    }
+    const timer = setTimeout(() => setPhase('retry'), RETRY_AFTER_MS)
+    return () => clearTimeout(timer)
+  }, [phase])
   const choose = async (send: string): Promise<void> => {
     setPhase('sending')
     const ok = await sendToSession({ paneKey, text: send, keys: true })
@@ -28,6 +39,11 @@ export function SessionApprovalActions({
         <span className="font-medium">{approval.title}</span>
       </div>
       {approval.detail ? <p className="line-clamp-2 break-all">{approval.detail}</p> : null}
+      {phase === 'retry' ? (
+        <p className="text-muted-foreground">
+          {translate('sessionCanvas.approval.retry', '没有反应？可以重试')}
+        </p>
+      ) : null}
       <div className="nodrag nopan flex flex-wrap gap-1">
         {approval.options.map((option) => (
           <Button
@@ -35,7 +51,7 @@ export function SessionApprovalActions({
             type="button"
             variant="outline"
             size="xs"
-            disabled={disabled || phase !== 'idle'}
+            disabled={disabled || phase === 'sending' || phase === 'sent'}
             onClick={() => void choose(option.send)}
           >
             {option.label}

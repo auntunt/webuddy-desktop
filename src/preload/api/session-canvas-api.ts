@@ -1,4 +1,6 @@
 import type {
+  SessionCanvasClosePaneArgs,
+  SessionCanvasClosePaneResult,
   SessionCanvasSendPromptArgs,
   SessionCanvasSendPromptResult,
   SessionCanvasSuperviseArgs,
@@ -14,6 +16,7 @@ import type {
 
 export type SessionCanvasApi = {
   sendPrompt: (args: SessionCanvasSendPromptArgs) => Promise<SessionCanvasSendPromptResult>
+  closePane: (args: SessionCanvasClosePaneArgs) => Promise<SessionCanvasClosePaneResult>
   supervise: (args: SessionCanvasSuperviseArgs) => Promise<SessionCanvasSuperviseResult>
   listExternalSessions: () => Promise<SessionCanvasListExternalSessionsResult>
   listMessages: (args: SessionCanvasListMessagesArgs) => Promise<SessionCanvasListMessagesResult>

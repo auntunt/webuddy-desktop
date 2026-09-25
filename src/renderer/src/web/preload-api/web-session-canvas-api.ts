@@ -7,6 +7,7 @@ export function createWebSessionCanvasApi(): Partial<PreloadApi> {
   return {
     sessionCanvas: {
       sendPrompt: () => Promise.resolve(DESKTOP_ONLY),
+      closePane: () => Promise.resolve(DESKTOP_ONLY),
       supervise: () => Promise.resolve(DESKTOP_ONLY),
       listExternalSessions: () => Promise.resolve(DESKTOP_ONLY),
       listMessages: () => Promise.resolve(DESKTOP_ONLY),

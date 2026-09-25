@@ -18113,7 +18113,8 @@
       "message": "发消息",
       "reveal": "跳到终端",
       "revealFailed": "无法打开这个终端。",
-      "close": "关闭终端"
+      "close": "关闭终端",
+      "closeUnverifiable": "关闭终端（主机连接中断，关闭结果无法确认）"
     },
     "state": {
       "working": "工作中",
@@ -18131,7 +18132,8 @@
       "title": "请求权限",
       "allow": "允许",
       "deny": "拒绝",
-      "allowAlways": "总是允许"
+      "allowAlways": "总是允许",
+      "retry": "没有反应？可以重试"
     },
     "error": {
       "loadFailed": "会话画布数据加载失败：{{reason}}"

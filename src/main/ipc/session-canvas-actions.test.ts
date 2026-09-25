@@ -5,6 +5,7 @@ vi.mock('electron', () => ({ ipcMain: { handle: vi.fn(), removeHandler: vi.fn() 
 import {
   SUPERVISE_IN_FLIGHT_REASON,
   createSessionCanvasActions,
+  parseClosePaneArgs,
   parseSendPromptArgs,
   parseSuperviseArgs,
   type SessionCanvasActionDeps
@@ -121,6 +122,36 @@ describe('sessionCanvas sendPrompt', () => {
       text: 'hi'
     })
     expect(result).toEqual({ ok: false, reason: 'terminal_handle_stale' })
+  })
+})
+
+describe('sessionCanvas closePane', () => {
+  it('closes only that pane through terminal.close', async () => {
+    const { deps, callRuntime } = makeDeps()
+    callRuntime.mockResolvedValue(success({ close: { handle: 'term_b' } }))
+    const result = await createSessionCanvasActions(deps).closePane({ paneKey: 'pane-b' })
+    expect(result).toEqual({ ok: true })
+    expect(callRuntime).toHaveBeenCalledWith('terminal.close', { terminal: 'term_b' })
+  })
+
+  it('refuses an unknown paneKey', async () => {
+    const { deps, callRuntime } = makeDeps()
+    const result = await createSessionCanvasActions(deps).closePane({ paneKey: 'pane-z' })
+    expect(result).toEqual({ ok: false, reason: expect.stringContaining('pane-z') })
+    expect(callRuntime).not.toHaveBeenCalled()
+  })
+
+  it('passes an RPC error message through', async () => {
+    const { deps, callRuntime } = makeDeps()
+    callRuntime.mockResolvedValue(failure('terminal_handle_stale'))
+    const result = await createSessionCanvasActions(deps).closePane({ paneKey: 'pane-a' })
+    expect(result).toEqual({ ok: false, reason: 'terminal_handle_stale' })
+  })
+
+  it('parses only a string paneKey', () => {
+    expect(parseClosePaneArgs({ paneKey: 'p' })).toEqual({ paneKey: 'p' })
+    expect(parseClosePaneArgs({ paneKey: 1 })).toBeNull()
+    expect(parseClosePaneArgs(null)).toBeNull()
   })
 })
 

@@ -39,8 +39,8 @@ export function ActionStream({
         stickToBottomRef.current =
           list.scrollHeight - list.scrollTop - list.clientHeight <= STICK_THRESHOLD_PX
       }}
-      // Why: nowheel lets the wheel scroll the list instead of zooming the canvas.
-      className="nowheel scrollbar-sleek min-h-0 flex-1 overflow-y-auto rounded-md bg-muted/50 px-2 py-1 font-mono text-[11px] leading-4"
+      // Why: nowheel/nodrag let wheel and drag scroll the list instead of moving the canvas.
+      className="nodrag nowheel scrollbar-sleek min-h-0 flex-1 overflow-y-auto rounded-md bg-muted/50 px-2 py-1 font-mono text-[11px] leading-4"
     >
       {withContentKeys(actions, (action) => `${action.at}:${action.toolName}`).map(
         ({ item: action, key }) => (

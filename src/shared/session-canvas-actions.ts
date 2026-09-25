@@ -7,6 +7,10 @@ export type SessionCanvasSendPromptArgs = {
 
 export type SessionCanvasSendPromptResult = { ok: true } | { ok: false; reason: string }
 
+export type SessionCanvasClosePaneArgs = { paneKey: string }
+
+export type SessionCanvasClosePaneResult = { ok: true } | { ok: false; reason: string }
+
 export type SessionCanvasSuperviseArgs = {
   coordinatorPaneKey: string
   workerPaneKey: string
