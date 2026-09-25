@@ -80,14 +80,29 @@ describe('measureGroupSize', () => {
   it('wraps children with padding', () => {
     expect(measureGroupSize([ORIGIN, { x: ORIGIN.x + STEP_X, y: ORIGIN.y + STEP_Y }])).toEqual({
       width: ORIGIN.x + STEP_X + SESSION_CARD_WIDTH + SESSION_GROUP_PADDING,
-      height: ORIGIN.y + STEP_Y + SESSION_CARD_HEIGHT + SESSION_GROUP_PADDING
+      height: ORIGIN.y + STEP_Y + SESSION_CARD_HEIGHT + SESSION_GROUP_PADDING,
+      childOffset: { x: 0, y: 0 }
+    })
+  })
+
+  it('shifts children with negative offsets inside the padded box', () => {
+    expect(
+      measureGroupSize([
+        { x: -100, y: 10 },
+        { x: 200, y: -30 }
+      ])
+    ).toEqual({
+      width: 200 + SESSION_GROUP_PADDING + 100 + SESSION_CARD_WIDTH + SESSION_GROUP_PADDING,
+      height: 10 + SESSION_GROUP_PADDING + 30 + SESSION_CARD_HEIGHT + SESSION_GROUP_PADDING,
+      childOffset: { x: SESSION_GROUP_PADDING + 100, y: SESSION_GROUP_PADDING + 30 }
     })
   })
 
   it('gives an empty group one card of room', () => {
     expect(measureGroupSize([])).toEqual({
       width: SESSION_CARD_WIDTH + 2 * SESSION_GROUP_PADDING,
-      height: SESSION_CARD_HEIGHT + 2 * SESSION_GROUP_PADDING
+      height: SESSION_CARD_HEIGHT + 2 * SESSION_GROUP_PADDING,
+      childOffset: { x: 0, y: 0 }
     })
   })
 })

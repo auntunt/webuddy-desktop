@@ -45,9 +45,7 @@ function placeGroupMembers(
   for (const member of members) {
     const known = inputs.savedPositions[member.id] ?? inputs.previousPositions[member.id]
     if (known) {
-      // Why: group boxes start at their origin, so a card dragged to negative coords would
-      // hang outside its group; clamping is idempotent and keeps positions stable.
-      placed.set(member.id, { x: Math.max(0, known.x), y: Math.max(0, known.y) })
+      placed.set(member.id, known)
     } else {
       pending.push(member)
     }
@@ -66,9 +64,35 @@ function placeGroupMembers(
   return placed
 }
 
-/** Last output positions keyed by node id; feed back as `previousPositions` for stability. */
+function groupChildOffset(node: SessionGraphNode | undefined): CanvasPoint {
+  return node?.type === 'group' && 'label' in node.data && node.data.childOffset
+    ? node.data.childOffset
+    : { x: 0, y: 0 }
+}
+
+/**
+ * Converts a rendered (React Flow) position back to the stored coordinate space used by
+ * `savedPositions`/`previousPositions`, undoing a group's negative-child shift.
+ */
+export function toStoredPosition(
+  graph: SessionGraph,
+  nodeId: string,
+  rendered: CanvasPoint
+): CanvasPoint {
+  const node = graph.nodes.find((candidate) => candidate.id === nodeId)
+  if (node?.type === 'group') {
+    const offset = groupChildOffset(node)
+    return { x: rendered.x + offset.x, y: rendered.y + offset.y }
+  }
+  const offset = groupChildOffset(graph.nodes.find((candidate) => candidate.id === node?.parentId))
+  return { x: rendered.x - offset.x, y: rendered.y - offset.y }
+}
+
+/** Last output positions in stored coordinates; feed back as `previousPositions` for stability. */
 export function collectGraphPositions(graph: SessionGraph): Record<string, CanvasPoint> {
-  return Object.fromEntries(graph.nodes.map((node) => [node.id, node.position]))
+  return Object.fromEntries(
+    graph.nodes.map((node) => [node.id, toStoredPosition(graph, node.id, node.position)])
+  )
 }
 
 /** Projects agent status, external sessions and messages into React Flow nodes and edges. */
@@ -99,24 +123,35 @@ export function buildSessionGraph(inputs: SessionCanvasInputs): SessionGraph {
   let cursorX = 0
   for (const group of groups) {
     if (group.known) {
-      cursorX = Math.max(cursorX, group.known.x + group.size.width + GROUP_GAP)
+      const left = group.known.x - group.size.childOffset.x
+      cursorX = Math.max(cursorX, left + group.size.width + GROUP_GAP)
     }
   }
 
   const groupNodes: SessionGraphNode[] = []
   const memberNodes: SessionGraphNode[] = []
   for (const { groupId, label, members, positions, known, size } of groups) {
-    let position = known
-    if (!position) {
-      position = { x: cursorX, y: 0 }
-      cursorX += size.width + GROUP_GAP
+    const { childOffset, width, height } = size
+    let anchor = known
+    if (!anchor) {
+      anchor = { x: cursorX + childOffset.x, y: childOffset.y }
+      cursorX += width + GROUP_GAP
     }
-    groupNodes.push({ id: groupId, type: 'group', position, data: { label }, ...size })
+    const shifted = childOffset.x !== 0 || childOffset.y !== 0
+    groupNodes.push({
+      id: groupId,
+      type: 'group',
+      position: { x: anchor.x - childOffset.x, y: anchor.y - childOffset.y },
+      data: shifted ? { label, childOffset } : { label },
+      width,
+      height
+    })
     for (const member of members) {
+      const stored = positions.get(member.id) ?? { x: 0, y: 0 }
       memberNodes.push({
         id: member.id,
         type: member.data.kind,
-        position: positions.get(member.id) ?? { x: 0, y: 0 },
+        position: { x: stored.x + childOffset.x, y: stored.y + childOffset.y },
         parentId: groupId,
         data: member.data
       })

@@ -36,6 +36,8 @@ export type SessionNodeData =
   | { kind: 'live'; entry: AgentStatusEntry; repoLabel: string | null }
   | { kind: 'external'; session: SessionCanvasExternalSession; repoLabel: string | null }
 
+export type SessionGroupData = { label: string; childOffset?: CanvasPoint }
+
 export type SessionEdgeKind = 'started' | 'messaged' | 'same-file'
 
 export type SessionGraphNode = {
@@ -43,7 +45,8 @@ export type SessionGraphNode = {
   type: 'live' | 'external' | 'group'
   position: CanvasPoint
   parentId?: string
-  data: SessionNodeData | { label: string }
+  /** Group `childOffset` is present only when children sit above/left of the stored origin. */
+  data: SessionNodeData | SessionGroupData
   /** Set on group nodes so React Flow can size the background region. */
   width?: number
   height?: number

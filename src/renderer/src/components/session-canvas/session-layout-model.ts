@@ -56,19 +56,35 @@ export function autoPlace(args: {
   return { x: SESSION_GROUP_PADDING, y: SESSION_GROUP_PADDING }
 }
 
-/** Group box that encloses its (relative) child cards plus padding. */
+/**
+ * Group box that encloses its (relative) child cards plus padding. Children dragged above or
+ * left of the group origin yield a `childOffset`: the group renders shifted by -offset and the
+ * children by +offset, so on-screen positions stay where the user put them.
+ */
 export function measureGroupSize(children: readonly CanvasPoint[]): {
   width: number
   height: number
+  childOffset: CanvasPoint
 } {
+  let minX = 0
+  let minY = 0
+  for (const child of children) {
+    minX = Math.min(minX, child.x)
+    minY = Math.min(minY, child.y)
+  }
+  const childOffset = {
+    x: minX < 0 ? SESSION_GROUP_PADDING - minX : 0,
+    y: minY < 0 ? SESSION_GROUP_PADDING - minY : 0
+  }
   let maxX = SESSION_GROUP_PADDING
   let maxY = SESSION_GROUP_PADDING
   for (const child of children) {
-    maxX = Math.max(maxX, child.x)
-    maxY = Math.max(maxY, child.y)
+    maxX = Math.max(maxX, child.x + childOffset.x)
+    maxY = Math.max(maxY, child.y + childOffset.y)
   }
   return {
     width: maxX + SESSION_CARD_WIDTH + SESSION_GROUP_PADDING,
-    height: maxY + SESSION_CARD_HEIGHT + SESSION_GROUP_PADDING
+    height: maxY + SESSION_CARD_HEIGHT + SESSION_GROUP_PADDING,
+    childOffset
   }
 }
