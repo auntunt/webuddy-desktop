@@ -3704,6 +3704,7 @@
       "slices": {
         "orca": {
           "profiles": {
+            "33290e88ed": "Failed to connect profile",
             "8b8fa73174": "Webuddy Cloud sign-in is not configured"
           }
         },
