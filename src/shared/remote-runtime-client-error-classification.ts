@@ -14,16 +14,22 @@ export const RECOVERABLE_CODES: ReadonlySet<string> = new Set([
   'timeout'
 ])
 
+// Why both brands: local producers say "Webuddy", but code-less messages from
+// remote hosts running upstream Orca still say "Orca".
+const BRANDED_RECOVERABLE_MESSAGE_FRAGMENTS = [
+  'could not connect to the remote {brand} runtime',
+  'remote {brand} runtime closed the connection',
+  'remote {brand} runtime connection closed',
+  'remote {brand} runtime is not connected',
+  'timed out waiting for the remote {brand} runtime'
+].flatMap((fragment) => ['orca', 'webuddy'].map((brand) => fragment.replace('{brand}', brand)))
+
 export const RECOVERABLE_MESSAGE_FRAGMENTS: readonly string[] = [
-  'could not connect to the remote orca runtime',
-  'remote orca runtime closed the connection',
-  'remote orca runtime connection closed',
-  'remote orca runtime is not connected',
+  ...BRANDED_RECOVERABLE_MESSAGE_FRAGMENTS,
   RUNTIME_RPC_QUEUE_OVERLOAD_MESSAGE_FRAGMENT,
   'remote runtime connection closed',
   'remote runtime subscription closed before it started',
-  'remote terminal stream is not connected',
-  'timed out waiting for the remote orca runtime'
+  'remote terminal stream is not connected'
 ]
 
 export function isRuntimeRpcQueueOverloadError(error: RemoteRuntimeClientErrorLike): boolean {
