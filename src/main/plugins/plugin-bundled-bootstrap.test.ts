@@ -22,8 +22,8 @@ async function writeBundle(root: string, name = 'Skills'): Promise<{ path: strin
     join(pluginRoot, 'orca-plugin.json'),
     JSON.stringify({
       manifestVersion: 1,
-      id: 'orca-skills',
-      publisher: 'stablyai',
+      id: 'webuddy-skills',
+      publisher: 'cloudwave',
       name,
       version: '1.0.0',
       engines: { orca: '>=1.0.0' },

@@ -126,8 +126,8 @@ describe('pluginMarketplaceSchema', () => {
 describe('marketplace provenance contracts', () => {
   it.each([
     ['cloudwave.webuddy-skills', true, true],
-    ['stablyai.skills', true, false],
-    ['community.orca-skills', true, false],
+    ['cloudwave.skills', true, false],
+    ['community.webuddy-skills', true, false],
     ['community.skills', false, false],
     ['invalid', false, false]
   ])('classifies %s', (pluginKey, reserved, official) => {
@@ -138,25 +138,27 @@ describe('marketplace provenance contracts', () => {
   it.each([
     'https://github.com/cloudwave/webuddy-skills.git',
     'ssh://git@github.com/cloudwave/webuddy-skills.git',
-    'git@github.com:stablyai/orca-skills.git'
+    'git@github.com:cloudwave/webuddy-skills.git'
   ])('accepts official organization source %s', (source) => {
     expect(isOfficialOrganizationGitSource(source)).toBe(true)
   })
 
   it('does not trust lookalike organizations or hosts', () => {
-    expect(isOfficialOrganizationGitSource('https://github.com/stablyai-fakes/orca-skills')).toBe(
+    expect(
+      isOfficialOrganizationGitSource('https://github.com/cloudwave-fakes/webuddy-skills')
+    ).toBe(false)
+    expect(isOfficialOrganizationGitSource('https://gitlab.com/cloudwave/webuddy-skills')).toBe(
       false
     )
-    expect(isOfficialOrganizationGitSource('https://gitlab.com/stablyai/orca-skills')).toBe(false)
   })
 
   it('recognizes only the canonical official marketplace repository', () => {
     expect(
       isOfficialMarketplaceGitSource(
-        `git@github.com:stablyai/${OFFICIAL_MARKETPLACE_REPOSITORY}.git`
+        `git@github.com:cloudwave/${OFFICIAL_MARKETPLACE_REPOSITORY}.git`
       )
     ).toBe(true)
-    expect(isOfficialMarketplaceGitSource('git@github.com:stablyai/plugins.git')).toBe(false)
+    expect(isOfficialMarketplaceGitSource('git@github.com:cloudwave/plugins.git')).toBe(false)
   })
 
   it('parses nested repository paths without confusing the repository name', () => {

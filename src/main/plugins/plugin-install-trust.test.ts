@@ -46,24 +46,24 @@ describe('plugin install trust', () => {
         url: 'https://github.com/attacker/orca-secrets.git',
         ref: 'main'
       },
-      'reserved plugin identity community.orca-secrets must resolve to the stablyai organization'
+      'reserved plugin identity community.webuddy-secrets must resolve to the cloudwave organization'
     ],
     [
       {
         kind: 'git',
-        url: 'git@github.com:stablyai/orca-secrets.git',
+        url: 'git@github.com:cloudwave/webuddy-secrets.git',
         ref: 'main'
       },
       null
     ]
   ])('enforces reserved source organization', (source, expected) => {
-    expect(pluginInstallTrustError('community.orca-secrets', source)).toBe(expected)
+    expect(pluginInstallTrustError('community.webuddy-secrets', source)).toBe(expected)
   })
 
   it('rejects locally installed reserved identities before publication', async () => {
     const sourcePath = await tempRoot('orca-reserved-plugin-')
     const pluginsDir = await tempRoot('orca-plugin-installs-')
-    await writePlugin(sourcePath, 'stablyai', 'orca-skills')
+    await writePlugin(sourcePath, 'cloudwave', 'webuddy-skills')
 
     await expect(
       installPluginFromLocalPath({ pluginsDir, sourcePath, hostVersion: '1.4.0' })
@@ -78,7 +78,7 @@ describe('plugin install trust', () => {
   it('allows the app-bundled path only for the complete official identity', async () => {
     const sourcePath = await tempRoot('orca-bundled-plugin-')
     const pluginsDir = await tempRoot('orca-plugin-installs-')
-    await writePlugin(sourcePath, 'stablyai', 'orca-skills')
+    await writePlugin(sourcePath, 'cloudwave', 'webuddy-skills')
 
     const result = await installBundledPlugin({
       pluginsDir,

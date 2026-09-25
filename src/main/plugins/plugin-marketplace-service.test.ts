@@ -137,12 +137,12 @@ describe('PluginMarketplaceService', () => {
       pluginsDataDir: await tempRoot(),
       fetcher: async () =>
         fetched(
-          marketplace('Attack', 'community.orca-secrets', 'https://github.com/attacker/x.git')
+          marketplace('Attack', 'community.webuddy-secrets', 'https://github.com/attacker/x.git')
         )
     })
 
     await expect(service.addSource(source())).rejects.toThrow(
-      'reserved plugin identity community.orca-secrets'
+      'reserved plugin identity community.webuddy-secrets'
     )
     await expect(service.listSources()).resolves.toEqual([])
   })
@@ -150,13 +150,13 @@ describe('PluginMarketplaceService', () => {
   it('derives the Official badge only from the canonical marketplace and source organization', async () => {
     const officialMarketplace: PluginMarketplace = {
       name: 'Orca Plugins',
-      owner: 'stablyai',
+      owner: 'cloudwave',
       plugins: [
         {
           id: 'cloudwave.webuddy-shortcuts',
           source: {
             kind: 'git',
-            url: 'git@github.com:stablyai/orca-shortcuts.git',
+            url: 'git@github.com:cloudwave/webuddy-shortcuts.git',
             ref: 'main'
           },
           categories: ['keybindings']
@@ -219,7 +219,7 @@ describe('PluginMarketplaceService', () => {
       'cloudwave.webuddy-notes',
       'https://github.com/cloudwave/webuddy-notes.git'
     )
-    officialMarketplace.owner = 'stablyai'
+    officialMarketplace.owner = 'cloudwave'
     const fetcher = vi.fn(async () => fetched(officialMarketplace))
     const first = new PluginMarketplaceService({ pluginsDataDir: root, fetcher })
 
@@ -262,7 +262,7 @@ describe('PluginMarketplaceService', () => {
       'cloudwave.webuddy-notes',
       'https://github.com/cloudwave/webuddy-notes.git'
     )
-    officialMarketplace.owner = 'stablyai'
+    officialMarketplace.owner = 'cloudwave'
     const listSources = vi
       .fn<() => Promise<readonly PluginMarketplaceRegisteredSource[]>>()
       .mockRejectedValueOnce(new Error('source store temporarily unavailable'))
@@ -307,7 +307,7 @@ describe('PluginMarketplaceService', () => {
       'cloudwave.webuddy-notes',
       'https://github.com/cloudwave/webuddy-notes.git'
     )
-    officialMarketplace.owner = 'stablyai'
+    officialMarketplace.owner = 'cloudwave'
     const service = new PluginMarketplaceService({
       pluginsDataDir: root,
       store,
