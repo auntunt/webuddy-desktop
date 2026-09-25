@@ -4,6 +4,7 @@ import { STAR_NAG_INITIAL_THRESHOLD } from '../../shared/constants'
 import type { PersistedUIState } from '../../shared/persisted-ui-state-types'
 import type { Store } from '../persistence'
 import type { StatsCollector } from '../stats/collector'
+import { setStarNagEnabledForTests } from './star-nag-availability'
 import { StarNagService } from './service'
 
 export type TestWindow = {
@@ -57,7 +58,11 @@ export function createWindow(): TestWindow {
   }
 }
 
-export function createHarness(initialUI: Partial<PersistedUIState> = {}): TestHarness {
+export function createHarness(
+  initialUI: Partial<PersistedUIState> = {},
+  { enabled = true }: { enabled?: boolean } = {}
+): TestHarness {
+  setStarNagEnabledForTests(enabled)
   let totalAgentsSpawned = 45
   const listeners: AgentStartedListener[] = []
   const ui = {

@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { STAR_NAG_INITIAL_THRESHOLD } from '../../shared/constants'
+import { isStarNagEnabled } from './star-nag-availability'
 import { checkOrcaStarred } from '../github/client'
 import type { Store } from '../persistence'
 import type { StatsCollector } from '../stats/collector'
@@ -21,11 +22,6 @@ import { ensureStarNagBaseline, shouldShowStarNagThresholdPrompt } from './thres
 const STAR_NAG_COOLDOWN_DAYS = 3
 const STAR_NAG_COOLDOWN_MS = STAR_NAG_COOLDOWN_DAYS * 24 * 60 * 60 * 1000
 type StarNagSurface = 'card' | 'toast'
-// Why: Webuddy is an internal fork of Orca; the upstream "star Orca on GitHub"
-// prompt is meaningless to our users, so every surface stays closed. Typed as
-// `boolean` rather than a literal so the guarded body below stays reachable to
-// the compiler and its helpers keep their call sites.
-const STAR_NAG_DISABLED: boolean = true
 
 export class StarNagService {
   private store: Store
@@ -181,7 +177,7 @@ export class StarNagService {
   ): boolean {
     // Why: this is the single choke point for both the card and the toast
     // surfaces, so disabling it here means no caller can re-open either one.
-    if (STAR_NAG_DISABLED) {
+    if (!isStarNagEnabled()) {
       return false
     }
     const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
