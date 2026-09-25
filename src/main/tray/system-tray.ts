@@ -49,7 +49,7 @@ function baseTooltip(): string {
   if (!devIndicator) {
     return 'Webuddy'
   }
-  return devIndicator.label ? `Orca DEV (${devIndicator.label})` : 'Webuddy DEV'
+  return devIndicator.label ? `Webuddy DEV (${devIndicator.label})` : 'Webuddy DEV'
 }
 
 // Why: on Windows the notification area expects a 16px icon; the app icon PNG

@@ -34,7 +34,7 @@ export function wslTranscriptFsProcessFailureError(detail: unknown): WslTranscri
   const text = detail instanceof Error ? detail.message : String(detail)
   return new WslTranscriptFsError(
     'unavailable',
-    `${WSL_TRANSCRIPT_FS_PROCESS_FAILURE_PREFIX} (${text}). Try again shortly or restart Orca if the issue continues.`
+    `${WSL_TRANSCRIPT_FS_PROCESS_FAILURE_PREFIX} (${text}). Try again shortly or restart Webuddy if the issue continues.`
   )
 }
 

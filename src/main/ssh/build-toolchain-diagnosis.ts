@@ -208,7 +208,7 @@ export function formatNodeHeadersDownloadError(
     ? [
         `The remote host could not download the Node.js headers needed to compile node-pty, even ` +
           `though its Node install ships matching headers at ${localHeadersDir}/include/node and ` +
-          `Webuddy pointed node-gyp at them. node-gyp ignored that setting; this is an Webuddy defect, ` +
+          `Webuddy pointed node-gyp at them. node-gyp ignored that setting; this is a Webuddy defect, ` +
           `please report it with the log below.`,
         '',
         'Workaround on the remote host until then: allow outbound HTTPS to nodejs.org, or point ' +
