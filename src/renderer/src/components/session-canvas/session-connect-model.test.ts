@@ -4,6 +4,7 @@ import { makeEntry, makeExternal, makeInputs } from './session-graph-test-fixtur
 import {
   PASS_ALONG_PREVIEW_MAX_CHARS,
   isLiveSessionConnection,
+  latestSessionResult,
   previewPassAlongText,
   resolveSessionConnection
 } from './session-connect-model'
@@ -54,5 +55,42 @@ describe('previewPassAlongText', () => {
     const preview = previewPassAlongText('字'.repeat(PASS_ALONG_PREVIEW_MAX_CHARS + 10))
     expect(Array.from(preview)).toHaveLength(PASS_ALONG_PREVIEW_MAX_CHARS + 1)
     expect(preview.endsWith('…')).toBe(true)
+  })
+})
+
+describe('latestSessionResult', () => {
+  it('uses the live message of a finished turn', () => {
+    expect(
+      latestSessionResult(
+        makeEntry('a', {
+          state: 'done',
+          lastAssistantMessage: '刚完成',
+          lastCompletedAssistantMessage: '上一轮'
+        })
+      )
+    ).toBe('刚完成')
+  })
+
+  it('falls back to the last completed turn while working or for tool output', () => {
+    expect(
+      latestSessionResult(
+        makeEntry('a', {
+          state: 'working',
+          lastAssistantMessage: '进行中',
+          lastCompletedAssistantMessage: '上一轮'
+        })
+      )
+    ).toBe('上一轮')
+    expect(
+      latestSessionResult(
+        makeEntry('a', {
+          state: 'done',
+          lastAssistantMessage: 'npm ERR!',
+          lastAssistantMessageIsToolOutput: true,
+          lastCompletedAssistantMessage: '上一轮'
+        })
+      )
+    ).toBe('上一轮')
+    expect(latestSessionResult(makeEntry('a'))).toBeNull()
   })
 })

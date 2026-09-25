@@ -15,7 +15,11 @@ import { translate } from '@/i18n/i18n'
 import { liveSessionTitle } from './live-session-card-model'
 import { composePassAlongPrompt } from './pass-along-prompt-model'
 import { sendToSession } from './session-canvas-send'
-import { previewPassAlongText, type ResolvedSessionConnection } from './session-connect-model'
+import {
+  latestSessionResult,
+  previewPassAlongText,
+  type ResolvedSessionConnection
+} from './session-connect-model'
 
 async function recordPassAlong(connection: ResolvedSessionConnection): Promise<void> {
   const failed = (reason: string): void => {
@@ -54,10 +58,10 @@ function PassAlongForm({
     () =>
       composePassAlongPrompt({
         fromTitle,
-        result: connection.from.lastCompletedAssistantMessage ?? null,
+        result: latestSessionResult(connection.from),
         note
       }),
-    [fromTitle, connection.from.lastCompletedAssistantMessage, note]
+    [fromTitle, connection.from, note]
   )
   const submit = async (): Promise<void> => {
     if (sending) {

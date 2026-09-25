@@ -37,3 +37,16 @@ export function resolveSessionConnection(
 export function previewPassAlongText(text: string): string {
   return truncateByCodePoints(text, PASS_ALONG_PREVIEW_MAX_CHARS)
 }
+
+/** A's newest result: `lastCompletedAssistantMessage` only fills once the next turn starts,
+ *  so a session sitting in `done` still carries its result in `lastAssistantMessage`. */
+export function latestSessionResult(entry: AgentStatusEntry): string | null {
+  if (
+    entry.state === 'done' &&
+    entry.lastAssistantMessage?.trim() &&
+    entry.lastAssistantMessageIsToolOutput !== true
+  ) {
+    return entry.lastAssistantMessage
+  }
+  return entry.lastCompletedAssistantMessage ?? null
+}
