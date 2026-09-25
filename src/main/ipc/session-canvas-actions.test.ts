@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn(), removeHandler: vi.fn() } }))
+vi.mock('./session-canvas-sender-trust', () => ({ sessionCanvasSenderRefusal: () => null }))
 
 import {
   SUPERVISE_IN_FLIGHT_REASON,

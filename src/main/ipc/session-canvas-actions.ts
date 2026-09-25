@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain } from 'electron'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import type { RpcResponse } from '../runtime/rpc/core'
 import { RpcDispatcher } from '../runtime/rpc/dispatcher'
 import { ALL_RPC_METHODS } from '../runtime/rpc/methods'
 import { ORCHESTRATION_CONTRACT_VERSION } from '../../shared/protocol-version'
 import { DESKTOP_RENDERER_RUNTIME_CLIENT_CAPABILITIES } from './desktop-renderer-runtime-capabilities'
+import { sessionCanvasSenderRefusal } from './session-canvas-sender-trust'
 import type {
   SessionCanvasClosePaneArgs,
   SessionCanvasClosePaneResult,
@@ -204,10 +205,6 @@ export function createSessionCanvasActions(deps: SessionCanvasActionDeps): {
   }
 }
 
-function isMainFrame(event: IpcMainInvokeEvent): boolean {
-  return event.senderFrame === event.sender.mainFrame
-}
-
 /** Canvas actions run the same RPC methods the CLI and orchestration use, in-process. */
 export function registerSessionCanvasActionHandlers(runtime: OrcaRuntimeService): void {
   const dispatcher = new RpcDispatcher({ runtime, methods: ALL_RPC_METHODS })
@@ -236,24 +233,27 @@ export function registerSessionCanvasActionHandlers(runtime: OrcaRuntimeService)
     fail(error instanceof Error ? error.message : String(error))
   ipcMain.removeHandler('sessionCanvas:sendPrompt')
   ipcMain.handle('sessionCanvas:sendPrompt', async (event, value: unknown) => {
-    if (!isMainFrame(event)) {
-      return fail('请求必须来自当前窗口。')
+    const refusal = sessionCanvasSenderRefusal(event)
+    if (refusal) {
+      return fail(refusal)
     }
     const args = parseSendPromptArgs(value)
     return args ? actions.sendPrompt(args).catch(toFailure) : fail('发送参数无效。')
   })
   ipcMain.removeHandler('sessionCanvas:closePane')
   ipcMain.handle('sessionCanvas:closePane', async (event, value: unknown) => {
-    if (!isMainFrame(event)) {
-      return fail('请求必须来自当前窗口。')
+    const refusal = sessionCanvasSenderRefusal(event)
+    if (refusal) {
+      return fail(refusal)
     }
     const args = parseClosePaneArgs(value)
     return args ? actions.closePane(args).catch(toFailure) : fail('关闭参数无效。')
   })
   ipcMain.removeHandler('sessionCanvas:supervise')
   ipcMain.handle('sessionCanvas:supervise', async (event, value: unknown) => {
-    if (!isMainFrame(event)) {
-      return fail('请求必须来自当前窗口。')
+    const refusal = sessionCanvasSenderRefusal(event)
+    if (refusal) {
+      return fail(refusal)
     }
     const args = parseSuperviseArgs(value)
     return args ? actions.supervise(args).catch(toFailure) : fail('监督参数无效。')

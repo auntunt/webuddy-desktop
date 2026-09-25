@@ -1,4 +1,4 @@
-import { app, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { app, ipcMain } from 'electron'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import { listAiVaultSessions } from '../ai-vault/cached-session-list'
 import type { AiVaultListResult, AiVaultSession } from '../../shared/ai-vault-types'
@@ -18,6 +18,7 @@ import {
   passAlongLogPath,
   readPassAlongMessages
 } from './session-canvas-pass-along-log'
+import { sessionCanvasSenderRefusal } from './session-canvas-sender-trust'
 
 export const EXTERNAL_SESSION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 export const EXTERNAL_SESSION_MAX_COUNT = 200
@@ -129,10 +130,6 @@ export function createSessionCanvasData(deps: SessionCanvasDataDeps): {
   }
 }
 
-function isMainFrame(event: IpcMainInvokeEvent): boolean {
-  return event.senderFrame === event.sender.mainFrame
-}
-
 function toFailure(error: unknown): { ok: false; reason: string } {
   return { ok: false, reason: error instanceof Error ? error.message : String(error) }
 }
@@ -165,16 +162,16 @@ export function registerSessionCanvasDataHandlers(
   })
 
   ipcMain.removeHandler('sessionCanvas:listExternalSessions')
-  ipcMain.handle('sessionCanvas:listExternalSessions', async (event) =>
-    isMainFrame(event)
-      ? data.listExternalSessions().catch(toFailure)
-      : toFailure('请求必须来自当前窗口。')
-  )
+  ipcMain.handle('sessionCanvas:listExternalSessions', async (event) => {
+    const refusal = sessionCanvasSenderRefusal(event)
+    return refusal ? toFailure(refusal) : data.listExternalSessions().catch(toFailure)
+  })
 
   ipcMain.removeHandler('sessionCanvas:listMessages')
   ipcMain.handle('sessionCanvas:listMessages', async (event, value: unknown) => {
-    if (!isMainFrame(event)) {
-      return toFailure('请求必须来自当前窗口。')
+    const refusal = sessionCanvasSenderRefusal(event)
+    if (refusal) {
+      return toFailure(refusal)
     }
     const args = parseListMessagesArgs(value)
     return args ? data.listMessages(args).catch(toFailure) : toFailure('参数无效。')
@@ -182,8 +179,9 @@ export function registerSessionCanvasDataHandlers(
 
   ipcMain.removeHandler('sessionCanvas:recordPassAlong')
   ipcMain.handle('sessionCanvas:recordPassAlong', async (event, value: unknown) => {
-    if (!isMainFrame(event)) {
-      return toFailure('请求必须来自当前窗口。')
+    const refusal = sessionCanvasSenderRefusal(event)
+    if (refusal) {
+      return toFailure(refusal)
     }
     const args = parseRecordPassAlongArgs(value)
     return args ? data.recordPassAlong(args).catch(toFailure) : toFailure('参数无效。')

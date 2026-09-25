@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AiVaultListResult, AiVaultSession } from '../../shared/ai-vault-types'
 import type { MessageRow } from '../runtime/orchestration/types'
+vi.mock('./session-canvas-sender-trust', () => ({ sessionCanvasSenderRefusal: () => null }))
+
 import {
   EXTERNAL_SESSION_MAX_COUNT,
   EXTERNAL_SESSION_WINDOW_MS,
