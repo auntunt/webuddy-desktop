@@ -7,11 +7,10 @@ import { NOW, makeEntry } from './session-graph-test-fixtures'
 import type * as SessionGraphModel from './session-graph-model'
 import type { SessionCanvasFilters } from './session-graph-types'
 
+type MockState = { agentStatusByPaneKey: Record<string, AgentStatusEntry>; worktreesByRepo: {} }
+
 const mocks = vi.hoisted(() => ({
-  state: {
-    agentStatusByPaneKey: {} as Record<string, AgentStatusEntry>,
-    worktreesByRepo: {}
-  },
+  state: ((): MockState => ({ agentStatusByPaneKey: {}, worktreesByRepo: {} }))(),
   buildCount: 0,
   api: { listExternalSessions: vi.fn(), listMessages: vi.fn() }
 }))
