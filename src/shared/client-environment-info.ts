@@ -13,9 +13,9 @@ const ORCA_LINE_PREFIX = 'Webuddy:'
 
 // Why: match the whole prefilled block (optional Shell line included) so strip
 // keeps authored text both above and below — users who click past the footer
-// and type must still be able to send.
+// and type must still be able to send. The brand must match ORCA_LINE_PREFIX.
 const CLIENT_ENVIRONMENT_FOOTER_BLOCK =
-  /(^|\r?\n)---\r?\nOrca:[^\r\n]*\r?\nOS:[^\r\n]*(?:\r?\nShell:[^\r\n]*)?/
+  /(^|\r?\n)---\r?\nWebuddy:[^\r\n]*\r?\nOS:[^\r\n]*(?:\r?\nShell:[^\r\n]*)?/
 
 function normalizeEnvironmentValue(value: string): string {
   return value.trim().replace(/[\r\n]+/g, ' ')
