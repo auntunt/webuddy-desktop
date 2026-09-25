@@ -40,13 +40,13 @@ describe('release channel', () => {
   // exposes only 10 entries, so 24 hourly tags a day would evict every stable/RC
   // entry and leave real users with nothing to update to.
   it('keeps dev builds out of the main release repo, and apart from each other', () => {
-    expect(getReleaseRepoForChannel('hourly')).toBe('stablyai/orca-hourly')
-    expect(getReleaseRepoForChannel('daily')).toBe('stablyai/orca-daily')
+    expect(getReleaseRepoForChannel('hourly')).toBe('cloudwave/webuddy-hourly')
+    expect(getReleaseRepoForChannel('daily')).toBe('cloudwave/webuddy-daily')
     // Why adhoc gets its own repo rather than sharing hourly's: an unlanded
     // branch build must never surface to someone who only meant to ride main.
-    expect(getReleaseRepoForChannel('adhoc')).toBe('stablyai/orca-adhoc')
-    expect(getReleaseRepoForChannel('stable')).toBe('stablyai/orca')
-    expect(getReleaseRepoForChannel('rc')).toBe('stablyai/orca')
+    expect(getReleaseRepoForChannel('adhoc')).toBe('cloudwave/webuddy-adhoc')
+    expect(getReleaseRepoForChannel('stable')).toBe('cloudwave/webuddy')
+    expect(getReleaseRepoForChannel('rc')).toBe('cloudwave/webuddy')
   })
 
   it('marks exactly the dev channels as having their own repo', () => {
@@ -67,15 +67,15 @@ describe('release channel', () => {
       'https://github.com/cloudwave/webuddy-daily/releases/tag/v1.4.160-daily.202607281300'
     )
     expect(getReleaseNotesUrlForVersion('1.4.160')).toBe(
-      'https://github.com/stablyai/orca/releases/tag/v1.4.160'
+      'https://github.com/cloudwave/webuddy/releases/tag/v1.4.160'
     )
     expect(getReleaseNotesUrlForVersion('v1.4.160-rc.3')).toBe(
-      'https://github.com/stablyai/orca/releases/tag/v1.4.160-rc.3'
+      'https://github.com/cloudwave/webuddy/releases/tag/v1.4.160-rc.3'
     )
     expect(getReleaseNotesUrlForVersion('1.4.160-adhoc.20260728140533')).toBe(
       'https://github.com/cloudwave/webuddy-adhoc/releases/tag/v1.4.160-adhoc.20260728140533'
     )
-    expect(getReleaseNotesUrlForVersion(null)).toBe('https://github.com/stablyai/orca/releases')
+    expect(getReleaseNotesUrlForVersion(null)).toBe('https://github.com/cloudwave/webuddy/releases')
   })
 
   it('round-trips an hourly version stamp as UTC', () => {
