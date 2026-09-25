@@ -3,6 +3,7 @@
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { cancelUnreadResponseBody } from '../lib/unread-response-body'
 import { ensureActiveOrcaProfile } from '../orca-profiles/profile-index-store'
 import { getOrcaCloudAuthConfig } from '../orca-profiles/profile-cloud-auth-config'
 import { OrcaCloudRequestError } from '../orca-profiles/profile-cloud-client'
@@ -89,6 +90,7 @@ async function requestCollectorToken(
     body: JSON.stringify({ deviceId })
   })
   if (!response.ok) {
+    await cancelUnreadResponseBody(response)
     throw new OrcaCloudRequestError(response.status)
   }
   return parseCollectorTokenResponse(await response.json())
