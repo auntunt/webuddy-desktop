@@ -39,8 +39,8 @@ describe('electron-builder dev-channel identity', () => {
 
     expect(config.win.signtoolOptions.publisherName).toBe('SignPath Foundation')
     expect(config.win.verifyUpdateCodeSignature).toBeUndefined()
-    expect(config.publish.repo).toBe('orca')
-    expect(config.publish.releaseType).toBe('release')
+    // Webuddy ships internally: no build carries an updater release feed.
+    expect(config.publish).toBeUndefined()
   })
 
   // The whole point of the change: an unsigned build that advertised a
@@ -67,14 +67,13 @@ describe('electron-builder dev-channel identity', () => {
   })
 
   it.each([
-    ['hourly', { ORCA_WIN_HOURLY: '1' }, 'orca-hourly'],
-    ['daily', { ORCA_WIN_DAILY: '1' }, 'orca-daily'],
-    ['adhoc', { ORCA_WIN_ADHOC: '1' }, 'orca-adhoc']
-  ])('publishes %s Windows builds to its own repo as a prerelease', (_channel, env, repo) => {
+    ['hourly', { ORCA_WIN_HOURLY: '1' }],
+    ['daily', { ORCA_WIN_DAILY: '1' }],
+    ['adhoc', { ORCA_WIN_ADHOC: '1' }]
+  ])('publishes %s Windows builds to no release feed', (_channel, env) => {
     const config = loadConfigWithEnv(env)
 
-    expect(config.publish.repo).toBe(repo)
-    expect(config.publish.releaseType).toBe('prerelease')
+    expect(config.publish).toBeUndefined()
   })
 
   // Why: ORCA_MAC_* gates hardened runtime, notarization, and root-level
@@ -95,7 +94,7 @@ describe('electron-builder dev-channel identity', () => {
     })
 
     expect(config.mac.notarize).toBe(true)
-    expect(config.publish.repo).toBe('orca-adhoc')
+    expect(config.publish).toBeUndefined()
   })
 })
 

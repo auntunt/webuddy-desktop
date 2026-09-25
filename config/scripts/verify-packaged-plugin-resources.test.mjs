@@ -68,7 +68,7 @@ describe('verify packaged plugin resources', () => {
       // Every file is rewritten, so the first mismatch is whichever plugin sorts
       // first — don't pin a name a later branch can reorder.
       expect(() => verifyPackagedPluginResources(resourcesDir)).toThrow(
-        /packaged bytes do not match stablyai\./
+        /packaged bytes do not match cloudwave\./
       )
     } finally {
       await rm(resourcesDir, { recursive: true, force: true })
