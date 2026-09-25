@@ -18148,7 +18148,8 @@
       "passAlong": "传话",
       "passAlongHint": "把 A 的最新结果发给 B",
       "supervise": "监督",
-      "superviseHint": "让 A 把一个任务派给 B 并跟进"
+      "superviseHint": "让 A 把一个任务派给 B 并跟进",
+      "hostUnverifiable": "无法确认「{{title}}」所在主机的连接，暂时不能发送。"
     },
     "passAlong": {
       "logFailed": "已送达，但没能记下这次传话",
@@ -18157,7 +18158,8 @@
       "description": "把「{{from}}」的最新结果发给「{{to}}」。",
       "noteLabel": "附言（可选）",
       "preview": "将发送的内容",
-      "submit": "传话"
+      "submit": "传话",
+      "noResult": "「{{title}}」还没有可传的结果。"
     },
     "dialog": {
       "cancel": "取消"
@@ -18177,6 +18179,25 @@
     "popout": {
       "errorTitle": "会话画布出错了。",
       "errorDescription": "画布没能完成渲染。可以重试，或关闭后重新弹出。"
+    },
+    "refusal": {
+      "agentPromptBlocked": "会话正在等你审批权限，先处理审批再发送。",
+      "agentPromptStalled": "会话没有接收这条消息，请稍后再试。",
+      "noAgent": "这个终端里没有在运行的智能体。",
+      "terminalNotWritable": "终端当前不接受输入，可能已退出或被锁定。",
+      "terminalHandleStale": "终端已经换了一个会话，请刷新后重试。",
+      "terminalExited": "终端已经退出。",
+      "terminalGone": "终端已经不存在。",
+      "terminalNotFound": "找不到这个终端。",
+      "terminalTabNotFound": "找不到这个终端标签。",
+      "terminalTabPinned": "标签已固定，不能从画布关闭。",
+      "terminalTabCloseTimeout": "关闭终端超时，请稍后再试。",
+      "runtimeUnavailable": "运行时暂时不可用。",
+      "timeout": "操作超时，请稍后再试。",
+      "runNotFound": "找不到协调者的编排运行。",
+      "taskNotStartable": "任务当前无法启动。",
+      "dispatchInactive": "这次派发已失效。",
+      "workerIdentityChanged": "工人会话已经变化，请重新连线。"
     }
   }
 }
