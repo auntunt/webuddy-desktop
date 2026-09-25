@@ -1,12 +1,15 @@
 import type { AppState } from '@/store/types'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import type { SessionCanvasPopoutSnapshot } from '../../../../shared/session-canvas-popout'
+import { PASS_ALONG_RESULT_MAX_CHARS } from './pass-along-prompt-model'
 
-// Cards show one reply line; approval detection needs the numbered options below the ask.
-export const SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS = 2000
+// Why this floor: a pass-along from the pop-out sends A's result, which may use this many chars.
+export const SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS = PASS_ALONG_RESULT_MAX_CHARS
 
-function capReply(text: string | undefined): string | undefined {
-  return text !== undefined && text.length > SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS
+/** Keeps the head (what pass-along sends); a paused session's ask is left whole because
+ *  its numbered approval options sit at the end. */
+function capReply(text: string | undefined, paused: boolean): string | undefined {
+  return !paused && text !== undefined && text.length > SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS
     ? text.slice(0, SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS)
     : text
 }
@@ -38,9 +41,9 @@ export function slimPopoutAgentStatusEntry(entry: AgentStatusEntry): AgentStatus
     toolInput: entry.toolInput,
     // Why: only a paused session renders its question/approval card.
     interactivePrompt: needsYou ? entry.interactivePrompt : undefined,
-    lastAssistantMessage: capReply(entry.lastAssistantMessage),
+    lastAssistantMessage: capReply(entry.lastAssistantMessage, needsYou),
     lastAssistantMessageIsToolOutput: entry.lastAssistantMessageIsToolOutput,
-    lastCompletedAssistantMessage: capReply(entry.lastCompletedAssistantMessage),
+    lastCompletedAssistantMessage: capReply(entry.lastCompletedAssistantMessage, false),
     orchestration: entry.orchestration,
     subagents: entry.subagents,
     providerSession: entry.providerSession

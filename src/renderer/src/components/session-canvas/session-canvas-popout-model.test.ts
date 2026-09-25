@@ -9,6 +9,8 @@ import {
   type SessionCanvasPopoutSourceState
 } from './session-canvas-popout-model'
 import { makeEntry, WT_A } from './session-graph-test-fixtures'
+import { resolveSessionApproval } from './approval-fallback-model'
+import { PASS_ALONG_RESULT_MAX_CHARS } from './pass-along-prompt-model'
 
 const SSH: SshConnectionState = {
   targetId: 'box',
@@ -114,5 +116,38 @@ describe('popout snapshot size', () => {
     const delta = buildSessionCanvasPopoutSnapshot(state, {}, false, previous)
     expect(Object.keys(delta.agentStatusByPaneKey)).toEqual(['changed'])
     expect(delta.removedPaneKeys).toEqual(['gone'])
+  })
+})
+
+describe('popout reply caps', () => {
+  it('keeps at least a full pass-along result of A', () => {
+    const state = makeState()
+    const long = 'r'.repeat(PASS_ALONG_RESULT_MAX_CHARS + 100)
+    state.agentStatusByPaneKey = {
+      a: makeEntry('a', {
+        state: 'done',
+        lastAssistantMessage: long,
+        lastCompletedAssistantMessage: long
+      })
+    }
+    const slim = buildSessionCanvasPopoutSnapshot(state, {}, false).agentStatusByPaneKey.a
+    expect(slim?.lastAssistantMessage?.length).toBeGreaterThanOrEqual(PASS_ALONG_RESULT_MAX_CHARS)
+    expect(slim?.lastCompletedAssistantMessage?.length).toBeGreaterThanOrEqual(
+      PASS_ALONG_RESULT_MAX_CHARS
+    )
+    expect(SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS).toBeGreaterThanOrEqual(
+      PASS_ALONG_RESULT_MAX_CHARS
+    )
+  })
+
+  it("never truncates a paused session's ask, so its trailing numbered options survive", () => {
+    const state = makeState()
+    const ask = `${'context '.repeat(1000)}\nDo you want to proceed?\n1. Yes\n2. No`
+    state.agentStatusByPaneKey = {
+      w: makeEntry('w', { state: 'waiting', lastAssistantMessage: ask })
+    }
+    const slim = buildSessionCanvasPopoutSnapshot(state, {}, false).agentStatusByPaneKey.w!
+    expect(slim.lastAssistantMessage).toBe(ask)
+    expect(resolveSessionApproval(slim)?.options.map((option) => option.send)).toEqual(['1', '2'])
   })
 })

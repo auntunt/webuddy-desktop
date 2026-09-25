@@ -105,6 +105,14 @@ describe('useSessionCanvasPopoutSnapshot', () => {
     expect(entries[ENTRY.paneKey]).toBe(kept)
   })
 
+  it('leaves the store entry map untouched on an empty delta', async () => {
+    await act(async () => root.render(<Harness />))
+    await act(async () => deliver?.(snapshot()))
+    const before = useAppStore.getState().agentStatusByPaneKey
+    await act(async () => deliver?.(snapshot({ agentStatusByPaneKey: {}, removedPaneKeys: [] })))
+    expect(useAppStore.getState().agentStatusByPaneKey).toBe(before)
+  })
+
   it('unsubscribes on unmount', async () => {
     await act(async () => root.render(<Harness />))
     await act(async () => root.unmount())

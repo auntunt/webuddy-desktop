@@ -54,6 +54,17 @@ describe('mergeSessionCanvasPopoutSnapshot', () => {
   })
 })
 
+describe('mergeSessionCanvasPopoutSnapshot empty delta', () => {
+  it('keeps the previous entry map object when a delta changes nothing', () => {
+    const full = snapshot({ agentStatusByPaneKey: { a: entry('a') } })
+    const merged = mergeSessionCanvasPopoutSnapshot(
+      full,
+      snapshot({ agentStatusByPaneKey: {}, removedPaneKeys: [] })
+    )
+    expect(merged.agentStatusByPaneKey).toBe(full.agentStatusByPaneKey)
+  })
+})
+
 describe('isSessionCanvasPopoutSnapshot', () => {
   it('accepts string removal lists only', () => {
     expect(isSessionCanvasPopoutSnapshot(snapshot({ removedPaneKeys: ['a'] }))).toBe(true)

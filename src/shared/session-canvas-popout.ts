@@ -59,7 +59,12 @@ export function mergeSessionCanvasPopoutSnapshot(
 ): SessionCanvasPopoutSnapshot {
   const { removedPaneKeys, worktreesByRepo: nextWorktrees, ...rest } = next
   let agentStatusByPaneKey = next.agentStatusByPaneKey
-  if (removedPaneKeys) {
+  const emptyDelta =
+    removedPaneKeys?.length === 0 && Object.keys(next.agentStatusByPaneKey).length === 0
+  if (emptyDelta && previous) {
+    // Why: same reference means the pop-out store sees no change and skips a graph rebuild.
+    agentStatusByPaneKey = previous.agentStatusByPaneKey
+  } else if (removedPaneKeys) {
     const merged = { ...previous?.agentStatusByPaneKey, ...next.agentStatusByPaneKey }
     for (const paneKey of removedPaneKeys) {
       delete merged[paneKey]
