@@ -41,6 +41,8 @@ export async function appendPassAlongLogEntry(
   filePath: string,
   entry: PassAlongLogEntry
 ): Promise<void> {
+  // Why unguarded read-modify-write: two concurrent appends can drop one entry, which only
+  // loses a best-effort "messaged" edge; pass-alongs are user-paced, so a lock isn't worth it.
   const next = [...(await readPassAlongLog(filePath)), entry].slice(-PASS_ALONG_LOG_MAX_ENTRIES)
   await writeFileDurable(durableWriteTempPath(filePath), filePath, JSON.stringify(next))
 }
