@@ -22,7 +22,7 @@ describe('resolveArtifactCloudApiUrl', () => {
 
   it('rejects origins that could receive an Orca access token', () => {
     expect(() => resolveArtifactCloudApiUrl('https://example.com', {}, false)).toThrow(
-      /onorca\.dev/
+      /cloudwaveai\.cn/
     )
     expect(() =>
       resolveArtifactCloudApiUrl('https://share.cloudwaveai.cn/path', {}, false)

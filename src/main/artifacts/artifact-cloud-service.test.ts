@@ -332,7 +332,7 @@ describe('ArtifactCloudService record authorization', () => {
             : createResponse()
         )
       }
-      if (url === 'http://localhost:4100/v1/desktop/auth/refresh') {
+      if (url === 'http://localhost:4100/api/desktop/refresh') {
         return Promise.resolve(
           new Response(
             JSON.stringify({
