@@ -141,6 +141,16 @@ describe('SessionCanvasPage', () => {
     expect(mocks.api.openPopout).toHaveBeenCalledOnce()
   })
 
+  it('hides the pop-out button in the web client', async () => {
+    Object.assign(window, { __ORCA_WEB_CLIENT__: true })
+    try {
+      await renderPage()
+      expect(screen.queryByRole('button', { name: '弹出' })).toBeNull()
+    } finally {
+      Object.assign(window, { __ORCA_WEB_CLIENT__: false })
+    }
+  })
+
   it('in the pop-out, hides the button and uses the git status the main window sent', async () => {
     mocks.fetchChangedFiles.mockClear()
     await renderPage({ changedFilesByWorktree: { [WT_A]: ['src/x.ts'], [WT_B]: ['src/x.ts'] } })

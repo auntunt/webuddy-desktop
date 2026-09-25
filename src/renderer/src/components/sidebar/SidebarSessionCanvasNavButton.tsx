@@ -1,13 +1,17 @@
 import React from 'react'
 import { Waypoints } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isWebClientLocation } from '@/lib/web-client-location'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
 
-/** Sidebar entry for the session canvas page; always shown (no hide setting yet). */
-export function SidebarSessionCanvasNavButton(): React.JSX.Element {
+/** Sidebar entry for the session canvas page; desktop only (its IPC has no web transport). */
+export function SidebarSessionCanvasNavButton(): React.JSX.Element | null {
   const openSessionCanvasPage = useAppStore((s) => s.openSessionCanvasPage)
   const active = useAppStore((s) => s.activeView === 'session-canvas')
+  if (isWebClientLocation()) {
+    return null
+  }
   return (
     <button
       type="button"

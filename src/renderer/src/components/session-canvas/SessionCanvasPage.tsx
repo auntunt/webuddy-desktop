@@ -15,6 +15,7 @@ import '@xyflow/react/dist/base.css'
 import { toast } from 'sonner'
 import './session-canvas.css'
 import { translate } from '@/i18n/i18n'
+import { isWebClientLocation } from '@/lib/web-client-location'
 import { ConnectMenu } from './ConnectMenu'
 import { ExternalSessionCard } from './ExternalSessionCard'
 import { LiveSessionCard } from './LiveSessionCard'
@@ -123,7 +124,7 @@ function SessionCanvasSurface({
         projectOptions={projectOptions}
         onResetLayout={onResetLayout}
         onFitView={() => void fitView({ duration: 200 })}
-        onPopout={popout ? undefined : openSessionCanvasPopout}
+        onPopout={popout || isWebClientLocation() ? undefined : openSessionCanvasPopout}
       />
       <div className="relative min-h-0 flex-1">
         <ReactFlow<SessionFlowNode, SessionFlowEdge>
