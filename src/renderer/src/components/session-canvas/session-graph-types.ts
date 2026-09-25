@@ -25,6 +25,9 @@ export type SessionCanvasInputs = {
   messages: SessionCanvasMessage[]
   /** Keyed by node id (`live:<paneKey>`, `ext:<key>`, `group:<id>`); relative to the parent group. */
   savedPositions: Record<string, CanvasPoint>
+  /** Last rendered position per node id (same keys/coords as savedPositions); keeps
+   *  auto-placed cards and groups still when other sessions appear, vanish or are filtered. */
+  previousPositions: Record<string, CanvasPoint>
   filters: SessionCanvasFilters
   now: number
 }

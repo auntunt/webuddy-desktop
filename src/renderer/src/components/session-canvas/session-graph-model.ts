@@ -34,18 +34,20 @@ function compareGroups(a: [string, string], b: [string, string]): number {
   return a[1].localeCompare(b[1]) || a[0].localeCompare(b[0])
 }
 
-/** Saved positions first, then parents before children so a child can sit beside its parent. */
+/** Saved, then previously rendered, positions win; the rest is auto-placed parents-first. */
 function placeGroupMembers(
   members: CanvasSession[],
-  savedPositions: SessionCanvasInputs['savedPositions'],
+  inputs: SessionCanvasInputs,
   parents: Map<string, string>
 ): Map<string, CanvasPoint> {
   const placed = new Map<string, CanvasPoint>()
   const pending: CanvasSession[] = []
   for (const member of members) {
-    const saved = savedPositions[member.id]
-    if (saved) {
-      placed.set(member.id, saved)
+    const known = inputs.savedPositions[member.id] ?? inputs.previousPositions[member.id]
+    if (known) {
+      // Why: group boxes start at their origin, so a card dragged to negative coords would
+      // hang outside its group; clamping is idempotent and keeps positions stable.
+      placed.set(member.id, { x: Math.max(0, known.x), y: Math.max(0, known.y) })
     } else {
       pending.push(member)
     }
@@ -64,35 +66,52 @@ function placeGroupMembers(
   return placed
 }
 
+/** Last output positions keyed by node id; feed back as `previousPositions` for stability. */
+export function collectGraphPositions(graph: SessionGraph): Record<string, CanvasPoint> {
+  return Object.fromEntries(graph.nodes.map((node) => [node.id, node.position]))
+}
+
 /** Projects agent status, external sessions and messages into React Flow nodes and edges. */
 export function buildSessionGraph(inputs: SessionCanvasInputs): SessionGraph {
   const { sessions, groupLabels } = resolveCanvasMembership(inputs)
   const startedParents = resolveStartedParents(inputs.liveEntries)
   const membersByGroup = new Map<string, CanvasSession[]>()
   for (const session of sessions) {
-    const members = membersByGroup.get(session.groupId)
-    if (members) {
-      members.push(session)
-    } else {
-      membersByGroup.set(session.groupId, [session])
+    const members = membersByGroup.get(session.groupId) ?? []
+    membersByGroup.set(session.groupId, members)
+    members.push(session)
+  }
+
+  const groups = [...groupLabels.entries()].sort(compareGroups).map(([groupId, label]) => {
+    const members = membersByGroup.get(groupId) ?? []
+    const positions = placeGroupMembers(members, inputs, startedParents)
+    const known = inputs.savedPositions[groupId] ?? inputs.previousPositions[groupId]
+    return {
+      groupId,
+      label,
+      members,
+      positions,
+      known,
+      size: measureGroupSize([...positions.values()])
+    }
+  })
+  // Why: new groups start right of every already-positioned group so they never cover a dragged one.
+  let cursorX = 0
+  for (const group of groups) {
+    if (group.known) {
+      cursorX = Math.max(cursorX, group.known.x + group.size.width + GROUP_GAP)
     }
   }
 
   const groupNodes: SessionGraphNode[] = []
   const memberNodes: SessionGraphNode[] = []
-  let cursorX = 0
-  for (const [groupId, label] of [...groupLabels.entries()].sort(compareGroups)) {
-    const members = membersByGroup.get(groupId) ?? []
-    const positions = placeGroupMembers(members, inputs.savedPositions, startedParents)
-    const size = measureGroupSize([...positions.values()])
-    groupNodes.push({
-      id: groupId,
-      type: 'group',
-      position: inputs.savedPositions[groupId] ?? { x: cursorX, y: 0 },
-      data: { label },
-      ...size
-    })
-    cursorX += size.width + GROUP_GAP
+  for (const { groupId, label, members, positions, known, size } of groups) {
+    let position = known
+    if (!position) {
+      position = { x: cursorX, y: 0 }
+      cursorX += size.width + GROUP_GAP
+    }
+    groupNodes.push({ id: groupId, type: 'group', position, data: { label }, ...size })
     for (const member of members) {
       memberNodes.push({
         id: member.id,

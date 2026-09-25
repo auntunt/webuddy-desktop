@@ -13,6 +13,7 @@ import type {
 } from './session-graph-types'
 
 export const SESSION_CANVAS_OTHER_GROUP_ID = 'group:other'
+// Why: fallback text only; the UI translates this group by SESSION_CANVAS_OTHER_GROUP_ID.
 export const SESSION_CANVAS_OTHER_GROUP_LABEL = '其他'
 export const SESSION_CANVAS_EXTERNAL_STATE = 'external'
 

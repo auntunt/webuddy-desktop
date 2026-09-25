@@ -2,10 +2,10 @@ import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import type { SessionCanvasMessage } from '../../../../shared/session-canvas-types'
 import { buildAgentRowLineageTree } from '../dashboard/agent-row-lineage-model'
 import { liveNodeId } from './session-graph-membership-model'
+import { buildSameFileEdges } from './session-same-file-edges-model'
 import type { CanvasSession, SessionGraphEdge } from './session-graph-types'
 
 export const MESSAGE_EDGE_ANIMATION_WINDOW_MS = 10 * 60_000
-export const SAME_FILE_EDGE_MAX_FILES = 20
 
 /** childNodeId → parentNodeId for panes started by another pane (same rule as the dashboard). */
 export function resolveStartedParents(liveEntries: AgentStatusEntry[]): Map<string, string> {
@@ -74,45 +74,6 @@ function buildMessagedEdges(
     kind: 'messaged',
     animated: now - at <= MESSAGE_EDGE_ANIMATION_WINDOW_MS
   }))
-}
-
-function buildSameFileEdges(
-  sessions: CanvasSession[],
-  changedFilesByWorktree: Record<string, string[]>
-): SessionGraphEdge[] {
-  const candidates = sessions.flatMap((session) => {
-    const worktreeId = session.data.kind === 'live' ? session.data.entry.worktreeId : undefined
-    const files = worktreeId ? changedFilesByWorktree[worktreeId] : undefined
-    return session.repoId && files && files.length > 0
-      ? [{ session, repoId: session.repoId, files }]
-      : []
-  })
-  const edges: SessionGraphEdge[] = []
-  for (let i = 0; i < candidates.length; i++) {
-    const left = candidates[i]
-    const leftFiles = new Set(left.files)
-    for (let j = i + 1; j < candidates.length; j++) {
-      const right = candidates[j]
-      if (right.repoId !== left.repoId) {
-        continue
-      }
-      const shared = right.files.filter((file) => leftFiles.has(file))
-      if (shared.length === 0) {
-        continue
-      }
-      const source = left.session.id
-      const target = right.session.id
-      edges.push({
-        id: `same-file:${source}|${target}`,
-        source,
-        target,
-        kind: 'same-file',
-        animated: false,
-        files: [...new Set(shared)].slice(0, SAME_FILE_EDGE_MAX_FILES)
-      })
-    }
-  }
-  return edges
 }
 
 export function buildSessionEdges(args: {

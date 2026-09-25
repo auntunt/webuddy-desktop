@@ -65,6 +65,7 @@ export function makeInputs(overrides: Partial<SessionCanvasInputs> = {}): Sessio
     repoIdByWorktree: { [WT_A]: 'repo-1', [WT_B]: 'repo-1', [WT_C]: 'repo-2' },
     messages: [],
     savedPositions: {},
+    previousPositions: {},
     filters: { query: '', agents: [], states: [], showExternal: true, hideIdleOlderThanMs: null },
     now: NOW,
     ...overrides
