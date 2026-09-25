@@ -3,7 +3,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
-import { NOW, WT_A, WT_B, makeEntry, makeExternal } from './session-graph-test-fixtures'
+import { NOW, WT_A, WT_B, WT_C, makeEntry, makeExternal } from './session-graph-test-fixtures'
 import type { SessionCanvasFilters } from './session-graph-types'
 
 type MockState = {
@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
   return {
     state,
     fetchChangedFiles: vi.fn(),
+    toastError: vi.fn(),
     api: { listExternalSessions: vi.fn(), listMessages: vi.fn() }
   }
 })
@@ -28,7 +29,7 @@ vi.mock('./session-canvas-git-status', () => ({
   fetchChangedFilesForWorktrees: mocks.fetchChangedFiles
 }))
 
-vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError } }))
 
 import {
   SESSION_CANVAS_EXTERNAL_POLL_MS,
@@ -42,6 +43,7 @@ const FILTERS: SessionCanvasFilters = {
   query: '',
   agents: [],
   states: [],
+  projects: [],
   showExternal: true,
   hideIdleOlderThanMs: null
 }
@@ -233,5 +235,99 @@ describe('useSessionCanvasData positions', () => {
     const graph = result.current.graph
     rerender()
     expect(result.current.graph).toBe(graph)
+  })
+})
+
+describe('useSessionCanvasData failures and in-flight guards', () => {
+  it('toasts each {ok:false} reason once across polls', async () => {
+    mocks.api.listMessages.mockResolvedValue({ ok: false, reason: '邮箱不可用' })
+    renderHook(() => useSessionCanvasData(FILTERS))
+    await flush()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SESSION_CANVAS_MESSAGE_POLL_MS * 2)
+    })
+    expect(mocks.api.listMessages).toHaveBeenCalledTimes(3)
+    expect(mocks.toastError).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError).toHaveBeenCalledWith('邮箱不可用')
+  })
+
+  it('toasts a rejected request once instead of swallowing it', async () => {
+    mocks.api.listExternalSessions.mockRejectedValue(new Error('ipc gone'))
+    renderHook(() => useSessionCanvasData(FILTERS))
+    await flush()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SESSION_CANVAS_EXTERNAL_POLL_MS * 2)
+    })
+    expect(mocks.api.listExternalSessions).toHaveBeenCalledTimes(3)
+    expect(mocks.toastError).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError.mock.calls[0][0]).toContain('ipc gone')
+  })
+
+  it('skips a tick while the previous request is still pending', async () => {
+    let settle: (value: unknown) => void = () => {}
+    mocks.api.listMessages.mockReturnValue(new Promise((resolve) => (settle = resolve)))
+    mocks.api.listExternalSessions.mockReturnValue(new Promise(() => {}))
+    renderHook(() => useSessionCanvasData(FILTERS))
+    await flush()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SESSION_CANVAS_EXTERNAL_POLL_MS * 2)
+    })
+    expect(mocks.api.listMessages).toHaveBeenCalledTimes(1)
+    expect(mocks.api.listExternalSessions).toHaveBeenCalledTimes(1)
+
+    mocks.api.listMessages.mockResolvedValue({ ok: true, messages: [] })
+    await act(async () => {
+      settle({ ok: true, messages: [] })
+      await vi.advanceTimersByTimeAsync(SESSION_CANVAS_MESSAGE_POLL_MS)
+    })
+    expect(mocks.api.listMessages).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshMessages still runs while a tick is pending', async () => {
+    mocks.api.listMessages.mockReturnValue(new Promise(() => {}))
+    const { result } = renderHook(() => useSessionCanvasData(FILTERS))
+    await flush()
+    act(() => result.current.refreshMessages())
+    expect(mocks.api.listMessages).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('useSessionCanvasData filters', () => {
+  it('puts every card back where it was after a search is cleared', async () => {
+    mocks.state.agentStatusByPaneKey = {
+      a: makeEntry('a', { worktreeId: WT_A, terminalTitle: 'alpha' }),
+      c: makeEntry('c', { worktreeId: WT_C, terminalTitle: 'gamma' })
+    }
+    let filters = FILTERS
+    const { result, rerender } = renderHook(() => useSessionCanvasData(filters))
+    await flush()
+    const groupBefore = nodePosition(result, 'group:repo-1')
+    const cardBefore = nodePosition(result, 'live:a')
+
+    filters = { ...FILTERS, query: 'gamma' }
+    rerender()
+    expect(nodePosition(result, 'live:a')).toBeUndefined()
+    filters = FILTERS
+    rerender()
+    expect(nodePosition(result, 'group:repo-1')).toEqual(groupBefore)
+    expect(nodePosition(result, 'live:a')).toEqual(cardBefore)
+  })
+
+  it('filters by project and still offers the hidden projects', async () => {
+    mocks.state.agentStatusByPaneKey = {
+      a: makeEntry('a', { worktreeId: WT_A }),
+      c: makeEntry('c', { worktreeId: WT_C })
+    }
+    const filters = { ...FILTERS, projects: ['group:repo-2'] }
+    const { result } = renderHook(() => useSessionCanvasData(filters))
+    await flush()
+    expect(result.current.graph.nodes.map((node) => node.id).sort()).toEqual([
+      'group:repo-2',
+      'live:c'
+    ])
+    expect(result.current.projectOptions.map((option) => option.id).sort()).toEqual([
+      'group:repo-1',
+      'group:repo-2'
+    ])
   })
 })

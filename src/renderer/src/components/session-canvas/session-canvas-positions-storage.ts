@@ -60,3 +60,16 @@ export function saveSessionCanvasPositions(positions: Record<string, CanvasPoint
     // The canvas stays usable when browser storage is unavailable or full.
   }
 }
+
+/**
+ * Remembered (not user-saved) positions: current frame wins, and nodes filtered out keep
+ * their last spot so clearing a search puts them back. Newest frame survives the cap.
+ */
+export function mergeRememberedPositions(
+  previous: Record<string, CanvasPoint>,
+  current: Record<string, CanvasPoint>
+): Record<string, CanvasPoint> {
+  const stale = Object.entries(previous).filter(([id]) => !(id in current))
+  const entries = [...stale, ...Object.entries(current)]
+  return Object.fromEntries(entries.slice(-SESSION_CANVAS_POSITIONS_MAX))
+}

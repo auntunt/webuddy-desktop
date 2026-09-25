@@ -117,3 +117,28 @@ export function clearSessionFlowDrags(
   }
   return { ...local, dragging }
 }
+
+/** Drops measured/selected/drag entries of nodes that left the graph so the maps can't grow forever. */
+export function pruneSessionFlowLocalState(
+  local: SessionFlowLocalState,
+  graph: SessionGraph
+): SessionFlowLocalState {
+  const ids = new Set(graph.nodes.map((node) => node.id))
+  const keep = <T>(record: Record<string, T>): Record<string, T> | null =>
+    Object.keys(record).every((id) => ids.has(id))
+      ? null
+      : Object.fromEntries(Object.entries(record).filter(([id]) => ids.has(id)))
+  const measured = keep(local.measured)
+  const dragging = keep(local.dragging)
+  const selectedStale = [...local.selected].some((id) => !ids.has(id))
+  if (!measured && !dragging && !selectedStale) {
+    return local
+  }
+  return {
+    measured: measured ?? local.measured,
+    dragging: dragging ?? local.dragging,
+    selected: selectedStale
+      ? new Set([...local.selected].filter((id) => ids.has(id)))
+      : local.selected
+  }
+}

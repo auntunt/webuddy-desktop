@@ -174,6 +174,18 @@ function isExternalVisible(
   )
 }
 
+function passesProjectFilter(
+  filters: SessionCanvasFilters,
+  groupId: string,
+  repoId: string | null
+): boolean {
+  return (
+    filters.projects.length === 0 ||
+    filters.projects.includes(groupId) ||
+    (repoId !== null && filters.projects.includes(repoId))
+  )
+}
+
 export type CanvasMembership = {
   sessions: CanvasSession[]
   groupLabels: Map<string, string>
@@ -197,6 +209,9 @@ export function resolveCanvasMembership(inputs: SessionCanvasInputs): CanvasMemb
       continue
     }
     const groupId = repoId ? `group:${repoId}` : SESSION_CANVAS_OTHER_GROUP_ID
+    if (!passesProjectFilter(inputs.filters, groupId, repoId)) {
+      continue
+    }
     addGroup(groupId, repoId ? (repoLabel ?? repoId) : null)
     sessions.push({
       id: liveNodeId(entry.paneKey),
@@ -221,6 +236,9 @@ export function resolveCanvasMembership(inputs: SessionCanvasInputs): CanvasMemb
       : session.cwd
         ? `group:path:${normalizeRuntimePathForComparison(session.cwd)}`
         : SESSION_CANVAS_OTHER_GROUP_ID
+    if (!passesProjectFilter(inputs.filters, groupId, repoId)) {
+      continue
+    }
     addGroup(groupId, repoId ? (repoLabel ?? repoId) : folderLabel)
     sessions.push({
       id: `ext:${session.key}`,

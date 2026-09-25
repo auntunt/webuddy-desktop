@@ -3,10 +3,11 @@ import { useAppStore } from '@/store'
 import { selectGitStatusTargets } from './session-canvas-git-targets-model'
 import {
   loadSessionCanvasPositions,
+  mergeRememberedPositions,
   saveSessionCanvasPositions,
   withSavedPosition
 } from './session-canvas-positions-storage'
-import { normalizeCanvasAgent } from './session-graph-membership-model'
+import { normalizeCanvasAgent, resolveCanvasMembership } from './session-graph-membership-model'
 import { buildSessionGraph, collectGraphPositions, toStoredPosition } from './session-graph-model'
 import type { SessionCanvasFilters, SessionGraph } from './session-graph-types'
 import type { CanvasPoint } from './session-layout-model'
@@ -18,10 +19,14 @@ export {
   SESSION_CANVAS_MESSAGE_POLL_MS
 } from './use-session-canvas-sources'
 
+export type SessionCanvasProjectOption = { id: string; label: string }
+
 export type SessionCanvasData = {
   graph: SessionGraph
   /** Normalized agent ids present on the canvas, for the agent filter. */
   agentOptions: string[]
+  /** Groups the canvas would show ignoring the project filter (id = group id). */
+  projectOptions: SessionCanvasProjectOption[]
   /** Persists a user-dragged node at its rendered (React Flow) position. */
   savePosition: (nodeId: string, rendered: CanvasPoint) => void
   /** Drops saved and remembered positions so everything is auto-placed again. */
@@ -85,7 +90,10 @@ export function useSessionCanvasData(filters: SessionCanvasFilters): SessionCanv
     ]
   )
   useEffect(() => {
-    previousPositionsRef.current = collectGraphPositions(graph)
+    previousPositionsRef.current = mergeRememberedPositions(
+      previousPositionsRef.current,
+      collectGraphPositions(graph)
+    )
   }, [graph])
 
   const savePosition = useCallback(
@@ -118,5 +126,33 @@ export function useSessionCanvasData(filters: SessionCanvasFilters): SessionCanv
     return [...agents].sort()
   }, [liveEntries, externalSessions])
 
-  return { graph, agentOptions, savePosition, resetLayout, refreshMessages }
+  const projectOptions = useMemo((): SessionCanvasProjectOption[] => {
+    const options: SessionCanvasProjectOption[] = []
+    if (filters.projects.length === 0) {
+      for (const node of graph.nodes) {
+        if ('label' in node.data) {
+          options.push({ id: node.id, label: node.data.label })
+        }
+      }
+      return options
+    }
+    // Why: with a project picked, the graph lacks the other groups the menu must still offer.
+    const { groupLabels } = resolveCanvasMembership({
+      liveEntries,
+      externalSessions,
+      changedFilesByWorktree: {},
+      repoIdByWorktree,
+      messages: [],
+      savedPositions: {},
+      previousPositions: {},
+      filters: { ...filters, projects: [] },
+      now
+    })
+    for (const [id, label] of groupLabels) {
+      options.push({ id, label })
+    }
+    return options
+  }, [graph, filters, liveEntries, externalSessions, repoIdByWorktree, now])
+
+  return { graph, agentOptions, projectOptions, savePosition, resetLayout, refreshMessages }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { translate } from '@/i18n/i18n'
 import { installWindowVisibilityInterval } from '@/lib/window-visibility-interval'
 import type {
   SessionCanvasExternalSession,
@@ -48,41 +49,84 @@ export function useSessionCanvasSources(gitTargets: readonly string[]): SessionC
     }
   }, [])
 
-  const loadExternal = useCallback(async (): Promise<void> => {
-    setNow(Date.now())
-    const result = await window.api.sessionCanvas.listExternalSessions()
-    if (!aliveRef.current) {
-      return
-    }
-    if (result.ok) {
-      setExternalSessions((previous) => keepIfEqual(previous, result.sessions))
-    } else {
-      reportFailure(result.reason)
-    }
-  }, [reportFailure])
+  const reportRejection = useCallback(
+    (error: unknown): void => {
+      const reason = error instanceof Error && error.message ? error.message : String(error)
+      reportFailure(
+        translate('sessionCanvas.error.loadFailed', '会话画布数据加载失败：{{reason}}', { reason })
+      )
+    },
+    [reportFailure]
+  )
 
-  const loadMessages = useCallback(async (): Promise<void> => {
-    const result = await window.api.sessionCanvas.listMessages({
-      sinceMs: Date.now() - SESSION_CANVAS_MESSAGE_WINDOW_MS
-    })
-    if (!aliveRef.current) {
+  // Why: a slow IPC must not stack a second request behind it on the next tick.
+  const externalInFlightRef = useRef(false)
+  const loadExternal = useCallback(async (): Promise<void> => {
+    if (externalInFlightRef.current) {
       return
     }
-    if (result.ok) {
-      setMessages((previous) => keepIfEqual(previous, result.messages))
-    } else {
-      reportFailure(result.reason)
+    externalInFlightRef.current = true
+    setNow(Date.now())
+    try {
+      const result = await window.api.sessionCanvas.listExternalSessions()
+      if (!aliveRef.current) {
+        return
+      }
+      if (result.ok) {
+        setExternalSessions((previous) => keepIfEqual(previous, result.sessions))
+      } else {
+        reportFailure(result.reason)
+      }
+    } catch (error) {
+      if (aliveRef.current) {
+        reportRejection(error)
+      }
+    } finally {
+      externalInFlightRef.current = false
     }
-  }, [reportFailure])
+  }, [reportFailure, reportRejection])
+
+  const messagesInFlightRef = useRef(0)
+  const messagesRequestRef = useRef(0)
+  const loadMessages = useCallback(
+    async (force: boolean): Promise<void> => {
+      if (messagesInFlightRef.current > 0 && !force) {
+        return
+      }
+      const request = ++messagesRequestRef.current
+      messagesInFlightRef.current++
+      try {
+        const result = await window.api.sessionCanvas.listMessages({
+          sinceMs: Date.now() - SESSION_CANVAS_MESSAGE_WINDOW_MS
+        })
+        // A forced refresh may overtake a tick; only the newest request may publish.
+        if (!aliveRef.current || request !== messagesRequestRef.current) {
+          return
+        }
+        if (result.ok) {
+          setMessages((previous) => keepIfEqual(previous, result.messages))
+        } else {
+          reportFailure(result.reason)
+        }
+      } catch (error) {
+        if (aliveRef.current) {
+          reportRejection(error)
+        }
+      } finally {
+        messagesInFlightRef.current--
+      }
+    },
+    [reportFailure, reportRejection]
+  )
 
   useEffect(() => {
     aliveRef.current = true
     const stopExternal = installWindowVisibilityInterval({
-      run: () => void loadExternal().catch(() => {}),
+      run: () => void loadExternal(),
       intervalMs: SESSION_CANVAS_EXTERNAL_POLL_MS
     })
     const stopMessages = installWindowVisibilityInterval({
-      run: () => void loadMessages().catch(() => {}),
+      run: () => void loadMessages(false),
       intervalMs: SESSION_CANVAS_MESSAGE_POLL_MS
     })
     return () => {
@@ -126,7 +170,7 @@ export function useSessionCanvasSources(gitTargets: readonly string[]): SessionC
   }, [gitTargetsKey])
 
   const refreshMessages = useCallback(() => {
-    void loadMessages().catch(() => {})
+    void loadMessages(true)
   }, [loadMessages])
 
   return { externalSessions, messages, changedFilesByWorktree, now, refreshMessages }

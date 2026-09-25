@@ -18098,7 +18098,8 @@
       "hideIdleOff": "显示全部空闲会话",
       "hideIdleHours": "隐藏空闲超过 {{hours}} 小时",
       "resetLayout": "重新排列",
-      "fitView": "适应视图"
+      "fitView": "适应视图",
+      "project": "项目"
     },
     "edge": {
       "sameFileCount": "{{fileCount}} 个相同文件"
@@ -18116,6 +18117,9 @@
     "group": {
       "other": "其他"
     },
-    "navLabel": "会话画布"
+    "navLabel": "会话画布",
+    "error": {
+      "loadFailed": "会话画布数据加载失败：{{reason}}"
+    }
   }
 }

@@ -66,7 +66,14 @@ export function makeInputs(overrides: Partial<SessionCanvasInputs> = {}): Sessio
     messages: [],
     savedPositions: {},
     previousPositions: {},
-    filters: { query: '', agents: [], states: [], showExternal: true, hideIdleOlderThanMs: null },
+    filters: {
+      query: '',
+      agents: [],
+      states: [],
+      projects: [],
+      showExternal: true,
+      hideIdleOlderThanMs: null
+    },
     now: NOW,
     ...overrides
   }

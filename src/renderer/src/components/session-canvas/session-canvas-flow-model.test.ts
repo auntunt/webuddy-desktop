@@ -3,6 +3,7 @@ import {
   EMPTY_SESSION_FLOW_LOCAL_STATE,
   applySessionFlowChanges,
   clearSessionFlowDrags,
+  pruneSessionFlowLocalState,
   toFlowEdges,
   toFlowNodes
 } from './session-canvas-flow-model'
@@ -78,5 +79,39 @@ describe('selectGitStatusTargets', () => {
       makeEntry('c', { worktreeId: WT_C })
     ]
     expect(selectGitStatusTargets(entries, {})).toEqual([WT_A, WT_B].sort())
+  })
+})
+
+describe('pruneSessionFlowLocalState', () => {
+  it('drops entries of nodes that left the graph and keeps the rest', () => {
+    const local = applySessionFlowChanges(EMPTY_SESSION_FLOW_LOCAL_STATE, [
+      { id: 'live:a', type: 'dimensions', dimensions: { width: 1, height: 1 } },
+      { id: 'live:gone', type: 'dimensions', dimensions: { width: 1, height: 1 } },
+      { id: 'live:gone', type: 'select', selected: true },
+      { id: 'live:gone', type: 'position', position: { x: 1, y: 1 } }
+    ])
+    const pruned = pruneSessionFlowLocalState(local, graph)
+    expect(Object.keys(pruned.measured)).toEqual(['live:a'])
+    expect(pruned.dragging).toEqual({})
+    expect(pruned.selected.size).toBe(0)
+    expect(pruneSessionFlowLocalState(pruned, graph)).toBe(pruned)
+  })
+})
+
+describe('project filter', () => {
+  const inputs = (projects: string[]) =>
+    makeInputs({
+      liveEntries: [makeEntry('a', { worktreeId: WT_A }), makeEntry('c', { worktreeId: WT_C })],
+      filters: { ...makeInputs().filters, projects }
+    })
+  const ids = (projects: string[]) =>
+    buildSessionGraph(inputs(projects))
+      .nodes.map((node) => node.id)
+      .sort()
+
+  it('keeps only sessions of the picked groups or repo ids', () => {
+    expect(ids(['group:repo-1'])).toEqual(['group:repo-1', 'live:a'])
+    expect(ids(['repo-2'])).toEqual(['group:repo-2', 'live:c'])
+    expect(ids([])).toHaveLength(4)
   })
 })

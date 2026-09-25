@@ -11,6 +11,8 @@ export type SessionCanvasFilters = {
   agents: string[]
   /** Live `AgentStatusState` values, plus `'external'` to keep read-only cards; empty means all. */
   states: string[]
+  /** Group ids (`group:<repoId>`, `group:path:…`, `group:other`) or repo ids; empty means all. */
+  projects: string[]
   showExternal: boolean
   hideIdleOlderThanMs: number | null
 }

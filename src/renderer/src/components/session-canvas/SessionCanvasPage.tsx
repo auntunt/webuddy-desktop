@@ -25,6 +25,7 @@ import {
   EMPTY_SESSION_FLOW_LOCAL_STATE,
   applySessionFlowChanges,
   clearSessionFlowDrags,
+  pruneSessionFlowLocalState,
   toFlowEdges,
   toFlowNodes,
   type SessionFlowEdge,
@@ -44,21 +45,29 @@ export const SESSION_CANVAS_DEFAULT_FILTERS: SessionCanvasFilters = {
   query: '',
   agents: [],
   states: [],
+  projects: [],
   showExternal: true,
   hideIdleOlderThanMs: 12 * 60 * 60 * 1000
 }
 
 function SessionCanvasSurface(): React.JSX.Element {
   const [filters, setFilters] = useState(SESSION_CANVAS_DEFAULT_FILTERS)
-  const { graph, agentOptions, savePosition, resetLayout } = useSessionCanvasData(filters)
+  const { graph, agentOptions, projectOptions, savePosition, resetLayout } =
+    useSessionCanvasData(filters)
   const [local, setLocal] = useState(EMPTY_SESSION_FLOW_LOCAL_STATE)
   const nodes = useMemo(() => toFlowNodes(graph, local), [graph, local])
   const edges = useMemo(() => toFlowEdges(graph), [graph])
   const { fitView } = useReactFlow()
 
-  const onNodesChange = useCallback((changes: NodeChange<SessionFlowNode>[]) => {
-    setLocal((current) => applySessionFlowChanges(current, changes))
-  }, [])
+  const onNodesChange = useCallback(
+    (changes: NodeChange<SessionFlowNode>[]) => {
+      // Pruning rides on RF's own change stream (new nodes always report dimensions).
+      setLocal((current) =>
+        pruneSessionFlowLocalState(applySessionFlowChanges(current, changes), graph)
+      )
+    },
+    [graph]
+  )
   const onNodeDragStop: OnNodeDrag<SessionFlowNode> = useCallback(
     (_event, _node, dragged) => {
       for (const node of dragged) {
@@ -86,6 +95,7 @@ function SessionCanvasSurface(): React.JSX.Element {
         filters={filters}
         onFiltersChange={setFilters}
         agentOptions={agentOptions}
+        projectOptions={projectOptions}
         onResetLayout={onResetLayout}
         onFitView={() => void fitView({ duration: 200 })}
       />

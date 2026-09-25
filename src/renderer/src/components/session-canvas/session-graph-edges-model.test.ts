@@ -65,6 +65,7 @@ describe('started edges', () => {
           query: 'shown',
           agents: [],
           states: [],
+          projects: [],
           showExternal: true,
           hideIdleOlderThanMs: null
         }

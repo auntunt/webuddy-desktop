@@ -19,8 +19,14 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
-import { SESSION_CANVAS_FILTER_STATES, sessionCanvasStateLabel } from './session-canvas-labels'
+import {
+  SESSION_CANVAS_FILTER_STATES,
+  sessionCanvasOtherGroupLabel,
+  sessionCanvasStateLabel
+} from './session-canvas-labels'
+import { SESSION_CANVAS_OTHER_GROUP_ID } from './session-graph-membership-model'
 import type { SessionCanvasFilters } from './session-graph-types'
+import type { SessionCanvasProjectOption } from './use-session-canvas-data'
 
 const HOUR_MS = 60 * 60 * 1000
 const HIDE_IDLE_HOURS = ['1', '6', '12', '24', '72'] as const
@@ -69,10 +75,18 @@ export function SessionCanvasToolbar(props: {
   filters: SessionCanvasFilters
   onFiltersChange: (next: SessionCanvasFilters) => void
   agentOptions: string[]
+  projectOptions: SessionCanvasProjectOption[]
   onResetLayout: () => void
   onFitView: () => void
 }): React.JSX.Element {
   const { filters, onFiltersChange } = props
+  const projectLabels = new Map(props.projectOptions.map((option) => [option.id, option.label]))
+  // Keep picked projects listed even after their sessions leave, so they can be unticked.
+  const projectIds = [...new Set([...projectLabels.keys(), ...filters.projects])]
+  const projectLabel = (id: string): string =>
+    id === SESSION_CANVAS_OTHER_GROUP_ID
+      ? sessionCanvasOtherGroupLabel()
+      : (projectLabels.get(id) ?? id.replace(/^group:/, ''))
   const hideIdleValue =
     filters.hideIdleOlderThanMs === null
       ? HIDE_IDLE_OFF
@@ -88,6 +102,13 @@ export function SessionCanvasToolbar(props: {
           aria-label={translate('sessionCanvas.toolbar.search', '搜索会话')}
         />
       </div>
+      <MultiFilterMenu
+        label={translate('sessionCanvas.toolbar.project', '项目')}
+        options={projectIds}
+        selected={filters.projects}
+        optionLabel={projectLabel}
+        onChange={(projects) => onFiltersChange({ ...filters, projects })}
+      />
       <MultiFilterMenu
         label={translate('sessionCanvas.toolbar.agent', 'Agent')}
         options={props.agentOptions}
