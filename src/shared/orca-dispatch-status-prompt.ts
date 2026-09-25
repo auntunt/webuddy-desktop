@@ -5,8 +5,9 @@
 // prompt so preamble detection, the live task id, and the task body all fit
 // inside AGENT_STATUS_MAX_FIELD_LENGTH.
 
+// Why: must match the header buildDispatchPreamble emits (and remote Orca hosts send).
 export const ORCA_DISPATCH_STATUS_PREAMBLE_PREFIX =
-  'You are working inside Webuddy, a multi-agent IDE.'
+  'You are working inside Orca, a multi-agent IDE.'
 export const ORCA_DISPATCH_STATUS_TASK_MARKER = '=== TASK ==='
 const ORCA_DISPATCH_STATUS_TASK_ID_MARKER = 'Your task ID is:'
 // Why: real preambles put === TASK === near the end (~4KB+). Scan past the
