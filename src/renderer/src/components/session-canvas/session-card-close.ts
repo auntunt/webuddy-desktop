@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { describeSessionCanvasRefusal } from './session-canvas-refusal-model'
 import { useRunningTerminalCloseConfirmStore } from '@/store/running-terminal-close-confirm'
 
 /** Close one session pane (split siblings survive); a busy agent goes through the shared
@@ -14,7 +15,7 @@ export function closeSessionPane(args: {
       .closePane({ paneKey: args.paneKey })
       .then((result) => {
         if (!result.ok) {
-          toast.error(result.reason)
+          toast.error(describeSessionCanvasRefusal(result.reason))
         }
       })
       .catch((error: unknown) => {

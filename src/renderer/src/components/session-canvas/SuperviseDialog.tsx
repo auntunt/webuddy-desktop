@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { translate } from '@/i18n/i18n'
 import type { SessionCanvasSuperviseResult } from '../../../../shared/session-canvas-actions'
 import { liveSessionTitle } from './live-session-card-model'
+import { describeSessionCanvasRefusal } from './session-canvas-refusal-model'
 import type { ResolvedSessionConnection } from './session-connect-model'
 import { useSessionConnectionBlock } from './use-session-connection-block'
 
@@ -42,7 +43,7 @@ function reportSuperviseResult(result: SessionCanvasSuperviseResult, workerTitle
           'sessionCanvas.supervise.unknownDetail',
           '{{reason}} · 派发编号：{{id}}',
           {
-            reason: result.reason,
+            reason: describeSessionCanvasRefusal(result.reason),
             id: result.dispatchId
           }
         )
@@ -50,7 +51,7 @@ function reportSuperviseResult(result: SessionCanvasSuperviseResult, workerTitle
     )
     return true
   }
-  toast.error(result.reason)
+  toast.error(describeSessionCanvasRefusal(result.reason))
   return false
 }
 
