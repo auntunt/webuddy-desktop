@@ -82,6 +82,29 @@ describe('useSessionCanvasPopoutSnapshot', () => {
     expect(useAppStore.getState().agentStatusByPaneKey).toEqual({})
   })
 
+  it('merges delta snapshots, keeping unchanged entries as the same objects', async () => {
+    await act(async () => root.render(<Harness />))
+    const other = makeEntry('tab-2:leaf-1')
+    await act(async () =>
+      deliver?.(
+        snapshot({ agentStatusByPaneKey: { [ENTRY.paneKey]: ENTRY, [other.paneKey]: other } })
+      )
+    )
+    const kept = useAppStore.getState().agentStatusByPaneKey[ENTRY.paneKey]
+    const added = makeEntry('tab-3:leaf-1')
+    await act(async () =>
+      deliver?.(
+        snapshot({
+          agentStatusByPaneKey: { [added.paneKey]: added },
+          removedPaneKeys: [other.paneKey]
+        })
+      )
+    )
+    const entries = useAppStore.getState().agentStatusByPaneKey
+    expect(Object.keys(entries).sort()).toEqual([ENTRY.paneKey, added.paneKey])
+    expect(entries[ENTRY.paneKey]).toBe(kept)
+  })
+
   it('unsubscribes on unmount', async () => {
     await act(async () => root.render(<Harness />))
     await act(async () => root.unmount())

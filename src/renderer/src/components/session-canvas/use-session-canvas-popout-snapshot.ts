@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { installWindowVisibilityInterval } from '@/lib/window-visibility-interval'
 import { useAppStore } from '@/store'
+import {
+  mergeSessionCanvasPopoutSnapshot,
+  type SessionCanvasPopoutSnapshot
+} from '../../../../shared/session-canvas-popout'
 import { sessionCanvasPopoutStorePatch } from './session-canvas-popout-model'
 import { SESSION_CANVAS_GIT_POLL_MS } from './use-session-canvas-sources'
 
@@ -25,7 +29,10 @@ export function useSessionCanvasPopoutSnapshot(): SessionCanvasPopoutView {
 
   useEffect(() => {
     const api = window.api.sessionCanvas
-    const offSnapshot = api.onSnapshot((snapshot) => {
+    let merged: SessionCanvasPopoutSnapshot | null = null
+    const offSnapshot = api.onSnapshot((incoming) => {
+      merged = mergeSessionCanvasPopoutSnapshot(merged, incoming)
+      const snapshot = merged
       useAppStore.setState(
         sessionCanvasPopoutStorePatch(snapshot, useAppStore.getState().worktreesByRepo)
       )

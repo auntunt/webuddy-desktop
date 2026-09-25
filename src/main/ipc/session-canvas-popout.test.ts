@@ -110,6 +110,21 @@ describe('registerSessionCanvasPopoutHandlers', () => {
     expect(sendToTrustedMock).toHaveBeenCalledWith('sessionCanvas:snapshotRequested', null)
   })
 
+  it('folds delta publishes into the replay cache', () => {
+    invoke('sessionCanvas:publishSnapshot', mainSender, snapshot())
+    const delta = snapshot({
+      agentStatusByPaneKey: { 'tab-2:leaf-1': { paneKey: 'tab-2:leaf-1' } },
+      removedPaneKeys: ['tab-1:leaf-1']
+    })
+    invoke('sessionCanvas:publishSnapshot', mainSender, delta)
+    expect(popoutSender.send).toHaveBeenLastCalledWith('sessionCanvas:snapshot', delta)
+    popoutSender.send.mockClear()
+    invoke('sessionCanvas:requestSnapshot', popoutSender)
+    const replayed = popoutSender.send.mock.calls[0]?.[1]
+    expect(Object.keys(replayed.agentStatusByPaneKey)).toEqual(['tab-2:leaf-1'])
+    expect(replayed.removedPaneKeys).toBeUndefined()
+  })
+
   it('drops the cache when the pop-out closes so a reopen never shows a stale canvas', () => {
     invoke('sessionCanvas:publishSnapshot', mainSender, snapshot())
     for (const listener of openListeners) {

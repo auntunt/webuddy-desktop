@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SshConnectionState } from '../../../../shared/ssh-types'
 import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
 import {
+  SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS,
   buildSessionCanvasPopoutSnapshot,
   sessionCanvasPopoutInputsChanged,
   sessionCanvasPopoutStorePatch,
@@ -36,7 +37,9 @@ describe('buildSessionCanvasPopoutSnapshot', () => {
     const state = makeState()
     const snapshot = buildSessionCanvasPopoutSnapshot(state, { [WT_A]: ['a.ts'] }, true)
     expect(snapshot).toEqual({
-      agentStatusByPaneKey: state.agentStatusByPaneKey,
+      agentStatusByPaneKey: {
+        'tab-1:leaf-1': { ...state.agentStatusByPaneKey['tab-1:leaf-1'], stateHistory: [] }
+      },
       worktreesByRepo: state.worktreesByRepo,
       sshConnectionStates: { 'conn-1': SSH },
       sshTargetLabels: { 'conn-1': 'build box' },
@@ -78,5 +81,38 @@ describe('sessionCanvasPopoutInputsChanged', () => {
     expect(sessionCanvasPopoutInputsChanged({ ...state, sshTargetLabels: new Map() }, state)).toBe(
       true
     )
+  })
+})
+
+describe('popout snapshot size', () => {
+  it('drops fields the canvas never reads and caps long replies', () => {
+    const state = makeState()
+    state.agentStatusByPaneKey = {
+      a: makeEntry('a', {
+        stateHistory: [{ state: 'working', prompt: 'p', startedAt: 1 }],
+        interactivePrompt: '{"questions":[]}',
+        lastAssistantMessage: 'x'.repeat(SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS + 50),
+        model: 'opus'
+      }),
+      w: makeEntry('w', { state: 'waiting', interactivePrompt: '{"approval":{}}' })
+    }
+    const { agentStatusByPaneKey } = buildSessionCanvasPopoutSnapshot(state, {}, false)
+    expect(agentStatusByPaneKey.a?.stateHistory).toEqual([])
+    expect(agentStatusByPaneKey.a?.interactivePrompt).toBeUndefined()
+    expect(agentStatusByPaneKey.a && 'model' in agentStatusByPaneKey.a).toBe(false)
+    expect(agentStatusByPaneKey.a?.lastAssistantMessage).toHaveLength(
+      SESSION_CANVAS_POPOUT_REPLY_MAX_CHARS
+    )
+    expect(agentStatusByPaneKey.w?.interactivePrompt).toBe('{"approval":{}}')
+  })
+
+  it('sends only changed entries and removals when given the previously sent entries', () => {
+    const state = makeState()
+    const kept = makeEntry('kept')
+    const previous = { kept, gone: makeEntry('gone'), changed: makeEntry('changed') }
+    state.agentStatusByPaneKey = { kept, changed: makeEntry('changed', { prompt: 'new' }) }
+    const delta = buildSessionCanvasPopoutSnapshot(state, {}, false, previous)
+    expect(Object.keys(delta.agentStatusByPaneKey)).toEqual(['changed'])
+    expect(delta.removedPaneKeys).toEqual(['gone'])
   })
 })

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import {
   isSessionCanvasPopoutSnapshot,
+  mergeSessionCanvasPopoutSnapshot,
   type SessionCanvasPopoutSnapshot
 } from '../../shared/session-canvas-popout'
 import type { PopoutUIStore } from '../window/popout-window-controller'
@@ -47,12 +48,9 @@ export function registerSessionCanvasPopoutHandlers(store: PopoutUIStore): void 
       console.warn('[session-canvas] rejected malformed popout snapshot')
       return
     }
-    // The renderer omits an unchanged worktree map; the cache keeps the last one so a
-    // pop-out mounting mid-session is still replayed a complete snapshot.
-    lastSnapshot =
-      snapshot.worktreesByRepo === undefined && lastSnapshot?.worktreesByRepo
-        ? { ...snapshot, worktreesByRepo: lastSnapshot.worktreesByRepo }
-        : snapshot
+    // The renderer sends deltas and omits an unchanged worktree map; the cache folds them
+    // so a pop-out mounting mid-session is still replayed a complete snapshot.
+    lastSnapshot = mergeSessionCanvasPopoutSnapshot(lastSnapshot, snapshot)
     sessionCanvasPopout.getWindow()?.webContents.send('sessionCanvas:snapshot', snapshot)
   })
 

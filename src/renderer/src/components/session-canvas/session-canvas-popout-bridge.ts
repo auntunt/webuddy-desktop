@@ -31,6 +31,7 @@ export function installSessionCanvasPopoutBridge(): () => void {
   const api = window.api.sessionCanvas
   let changedFilesByWorktree: Record<string, string[]> = {}
   let lastWorktrees: AppState['worktreesByRepo'] | null = null
+  let lastEntries: AppState['agentStatusByPaneKey'] | null = null
   let gitInFlight = false
   let disposed = false
 
@@ -38,8 +39,16 @@ export function installSessionCanvasPopoutBridge(): () => void {
     const state = useAppStore.getState()
     const includeWorktrees = full || state.worktreesByRepo !== lastWorktrees
     lastWorktrees = state.worktreesByRepo
+    // Why: a full publish may seed a pop-out starting from nothing; later ones ship diffs.
+    const previousEntries = full ? null : lastEntries
+    lastEntries = state.agentStatusByPaneKey
     void api.publishSnapshot(
-      buildSessionCanvasPopoutSnapshot(state, changedFilesByWorktree, includeWorktrees)
+      buildSessionCanvasPopoutSnapshot(
+        state,
+        changedFilesByWorktree,
+        includeWorktrees,
+        previousEntries
+      )
     )
   }
 

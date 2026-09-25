@@ -10,6 +10,9 @@ import type { Worktree } from './worktree/types'
  */
 export type SessionCanvasPopoutSnapshot = {
   agentStatusByPaneKey: Record<string, AgentStatusEntry>
+  /** Present on a delta: `agentStatusByPaneKey` then holds only changed entries, and these
+   *  pane keys were removed. Receivers merge it with `mergeSessionCanvasPopoutSnapshot`. */
+  removedPaneKeys?: string[]
   /** Omitted when unchanged since the previous publish; receivers keep the last one. */
   worktreesByRepo?: Record<string, Worktree[]>
   sshConnectionStates: Record<string, SshConnectionState>
@@ -35,6 +38,9 @@ export function isSessionCanvasPopoutSnapshot(
   }
   return (
     isRecordOf(value.agentStatusByPaneKey, isRecord) &&
+    (value.removedPaneKeys === undefined ||
+      (Array.isArray(value.removedPaneKeys) &&
+        value.removedPaneKeys.every((key) => typeof key === 'string'))) &&
     (value.worktreesByRepo === undefined ||
       isRecordOf(value.worktreesByRepo, (worktrees) => Array.isArray(worktrees))) &&
     isRecordOf(value.sshConnectionStates, isRecord) &&
@@ -44,4 +50,22 @@ export function isSessionCanvasPopoutSnapshot(
       (files) => Array.isArray(files) && files.every((file) => typeof file === 'string')
     )
   )
+}
+
+/** Folds a (possibly delta, possibly worktree-less) snapshot onto the last complete one. */
+export function mergeSessionCanvasPopoutSnapshot(
+  previous: SessionCanvasPopoutSnapshot | null,
+  next: SessionCanvasPopoutSnapshot
+): SessionCanvasPopoutSnapshot {
+  const { removedPaneKeys, worktreesByRepo: nextWorktrees, ...rest } = next
+  let agentStatusByPaneKey = next.agentStatusByPaneKey
+  if (removedPaneKeys) {
+    const merged = { ...previous?.agentStatusByPaneKey, ...next.agentStatusByPaneKey }
+    for (const paneKey of removedPaneKeys) {
+      delete merged[paneKey]
+    }
+    agentStatusByPaneKey = merged
+  }
+  const worktreesByRepo = nextWorktrees ?? previous?.worktreesByRepo
+  return { ...rest, agentStatusByPaneKey, ...(worktreesByRepo ? { worktreesByRepo } : {}) }
 }

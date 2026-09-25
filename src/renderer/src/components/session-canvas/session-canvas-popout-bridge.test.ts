@@ -111,8 +111,29 @@ describe('installSessionCanvasPopoutBridge', () => {
     expect(harness.api.publishSnapshot).not.toHaveBeenCalled()
     harness.open(true)
     const snapshot = lastSnapshot(harness.api)
-    expect(snapshot.agentStatusByPaneKey).toBe(mocks.state.current.agentStatusByPaneKey)
+    expect(Object.keys(snapshot.agentStatusByPaneKey)).toEqual(['a', 'b'])
+    expect(snapshot.agentStatusByPaneKey.a?.actionHistory).toHaveLength(1)
+    expect(snapshot.removedPaneKeys).toBeUndefined()
     expect(snapshot.worktreesByRepo).toBe(mocks.state.current.worktreesByRepo)
+  })
+
+  it('after the first full publish, sends only changed entries and removals', () => {
+    harness.open(true)
+    vi.advanceTimersByTime(300)
+    const previous = mocks.state.current
+    mocks.state.current = {
+      ...previous,
+      agentStatusByPaneKey: { a: makeEntry('a', { worktreeId: WT_A, prompt: 'next' }) }
+    }
+    for (const listener of mocks.storeListeners) {
+      listener(mocks.state.current, previous)
+    }
+    const delta = lastSnapshot(harness.api)
+    expect(Object.keys(delta.agentStatusByPaneKey)).toEqual(['a'])
+    expect(delta.removedPaneKeys).toEqual(['b'])
+
+    harness.request()
+    expect(lastSnapshot(harness.api).removedPaneKeys).toBeUndefined()
   })
 
   it('republishes on mirrored store writes and omits an unchanged worktree map', () => {
