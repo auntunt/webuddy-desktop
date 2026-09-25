@@ -152,7 +152,6 @@ export type UISliceCore = {
   previousViewBeforeSkills: Exclude<UiViewHistory, 'skills'>
   previousViewBeforeMobile: Exclude<UiViewHistory, 'mobile'>
   previousViewBeforeArtifacts: Exclude<UiViewHistory, 'artifacts'>
-  previousViewBeforeSessionCanvas: Exclude<UiViewHistory, 'session-canvas'>
   setActiveView: (view: UISliceCore['activeView']) => void
   taskPageData: TaskPageData
   taskResumeState: TaskResumeState | undefined
@@ -197,7 +196,6 @@ export type UISliceCore = {
   openMobilePage: () => void
   closeMobilePage: () => void
   openSessionCanvasPage: () => void
-  closeSessionCanvasPage: () => void
   setNewWorkspaceDraft: (draft: NonNullable<UISliceCore['newWorkspaceDraft']>) => void
   clearNewWorkspaceDraft: () => void
   pendingRevealWorktree: PendingSidebarWorktreeReveal | null
