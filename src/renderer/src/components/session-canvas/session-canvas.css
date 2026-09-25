@@ -1,0 +1,42 @@
+/*
+ * Session canvas theming. Loaded only by the lazy canvas page chunk; maps React Flow's
+ * variables onto app tokens so light/dark follow the app theme.
+ */
+.session-canvas .react-flow {
+  --xy-background-color: var(--background);
+  --xy-background-pattern-dots-color: var(--border);
+  --xy-edge-stroke: var(--muted-foreground);
+  --xy-edge-stroke-selected: var(--foreground);
+  --xy-connectionline-stroke: var(--muted-foreground);
+  --xy-handle-background-color: var(--muted-foreground);
+  --xy-handle-border-color: var(--background);
+  --xy-minimap-background-color: var(--card);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --xy-minimap-node-background-color: var(--muted);
+  --xy-attribution-background-color: transparent;
+  --xy-selection-background-color: color-mix(in srgb, var(--ring) 10%, transparent);
+  --xy-selection-border: 1px dotted var(--ring);
+}
+
+/* `messaged` edges: dots flowing from sender to receiver along the edge path. */
+.session-edge-flow {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 0 14;
+  pointer-events: none;
+  animation: session-edge-flow 0.9s linear infinite;
+}
+
+@keyframes session-edge-flow {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-edge-flow {
+    animation: none;
+  }
+}

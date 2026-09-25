@@ -251,6 +251,7 @@ export function buildAgentStatusLiveEntry(
     tabId: statusTabId,
     terminalTitle: effectiveTitle,
     stateHistory: history,
+    // Why one line: the wrapped call would push this file past the 300-line cap.
     // prettier-ignore
     actionHistory: nextAgentActionHistory(existing?.actionHistory, payload.toolName, payload.toolInput, updatedAt, payload.sessionBoundary === true),
     toolName: payload.toolName,

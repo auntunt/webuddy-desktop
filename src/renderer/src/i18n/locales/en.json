@@ -18085,5 +18085,37 @@
     "notStarted": "尚未开始上报",
     "lastPush": "上次上报：{{when}}，成功 {{total}} 条",
     "pending": "待上报：{{total}} 条"
+  },
+  "sessionCanvas": {
+    "empty": "还没有会话。在终端里启动一个 agent，它会出现在这里。",
+    "title": "会话画布",
+    "toolbar": {
+      "search": "搜索会话",
+      "agent": "Agent",
+      "state": "状态",
+      "showExternal": "显示外部会话",
+      "hideIdle": "隐藏空闲会话",
+      "hideIdleOff": "显示全部空闲会话",
+      "hideIdleHours": "隐藏空闲超过 {{hours}} 小时",
+      "resetLayout": "重新排列",
+      "fitView": "适应视图"
+    },
+    "edge": {
+      "sameFileCount": "{{fileCount}} 个相同文件"
+    },
+    "card": {
+      "externalReadOnly": "外部 · 只读"
+    },
+    "state": {
+      "working": "工作中",
+      "waiting": "等你决定",
+      "blocked": "受阻",
+      "done": "已完成",
+      "external": "外部会话"
+    },
+    "group": {
+      "other": "其他"
+    },
+    "navLabel": "会话画布"
   }
 }
